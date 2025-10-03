@@ -416,17 +416,44 @@ const CustomerPortal = () => {
     return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${data}`;
   };
 
-  const handleDownloadQr = () => {
+  const handleDownloadQr = async () => {
     if (!successData?.qrCodeImage) {
       return;
     }
-    const link = document.createElement('a');
     const sanitizedVehicle = (successData.vehicleNumber || 'vehicle').replace(/[^A-Z0-9-]+/gi, '-');
-    link.href = successData.qrCodeImage;
-    link.download = `entry-qr-${sanitizedVehicle}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const filename = `entry-qr-${sanitizedVehicle}.png`;
+
+    try {
+      const imageSrc = successData.qrCodeImage;
+
+      // Data URLs can be downloaded directly
+      if (imageSrc.startsWith('data:')) {
+        const link = document.createElement('a');
+        link.href = imageSrc;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        return;
+      }
+
+      // For cross-origin URLs, fetch the image as a blob and create an object URL
+      const response = await fetch(imageSrc);
+      if (!response.ok) {
+        throw new Error('Failed to fetch QR image for download.');
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setSubmitError('Unable to download QR code. Please try opening the image in a new tab.');
+    }
   };
 
   const handleSubmit = async () => {
