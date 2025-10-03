@@ -68,6 +68,17 @@ const getStoredToken = () => {
   return localStorage.getItem('customerToken') || '';
 };
 
+const storeToken = (value) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  if (value) {
+    localStorage.setItem('customerToken', value);
+  } else {
+    localStorage.removeItem('customerToken');
+  }
+};
+
 const validateVehicleNumber = (value) => {
   if (!value.trim()) {
     return 'Vehicle number is required.';
