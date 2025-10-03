@@ -61,6 +61,13 @@ const initialFiles = {
   aadhaarCard: null
 };
 
+const getStoredToken = () => {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+  return localStorage.getItem('customerToken') || '';
+};
+
 const validateVehicleNumber = (value) => {
   if (!value.trim()) {
     return 'Vehicle number is required.';
