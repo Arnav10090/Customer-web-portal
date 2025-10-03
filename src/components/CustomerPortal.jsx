@@ -65,20 +65,23 @@ const initialFormData = {
   customerEmail: "",
   customerPhone: "",
   driverPhone: "",
+  driverName: "",
   helperPhone: "",
+  helperName: "",
   driverLanguage: "en",
+  helperLanguage: "en",
 };
 
 const initialFiles = {
-  purchaseOrder: null,
-  vehiclePapers: null,
-  aadhaarCard: null,
+  purchaseOrder: [],
+  vehiclePapers: [],
+  aadhaarCard: [],
 };
 
 // Ensure initialFiles has keys for all dynamic document options
 documentOptions.forEach((opt) => {
   if (!(opt.id in initialFiles)) {
-    initialFiles[opt.id] = null;
+    initialFiles[opt.id] = [];
   }
 });
 
@@ -137,7 +140,7 @@ const validateEmail = (value) => {
 
 const validateHelperPhone = (value) => {
   if (!value) {
-    return "";
+    return "Helper phone number is required.";
   }
   if (!/^\+91\d{10}$/.test(value)) {
     return "Helper phone must follow +91XXXXXXXXXX format.";
@@ -303,6 +306,13 @@ const CustomerPortal = () => {
   const prefButtonRef = useRef(null);
   const prefListRef = useRef(null);
 
+  // helper preferred language dropdown state (for helper language)
+  const [helperPrefDropdownOpen, setHelperPrefDropdownOpen] = useState(false);
+  const [helperPrefSearch, setHelperPrefSearch] = useState('');
+  const [helperPrefHighlight, setHelperPrefHighlight] = useState(0);
+  const helperPrefButtonRef = useRef(null);
+  const helperPrefListRef = useRef(null);
+
   // click-away to close preferred language dropdown
   useEffect(() => {
     const onPrefClickAway = (e) => {
@@ -316,6 +326,20 @@ const CustomerPortal = () => {
     }
     return () => document.removeEventListener('click', onPrefClickAway);
   }, [prefDropdownOpen]);
+
+  // click-away to close helper language dropdown
+  useEffect(() => {
+    const onHelperPrefClickAway = (e) => {
+      if (!helperPrefButtonRef.current) return;
+      if (helperPrefButtonRef.current.contains(e.target)) return;
+      if (helperPrefListRef.current && helperPrefListRef.current.contains && helperPrefListRef.current.contains(e.target)) return;
+      setHelperPrefDropdownOpen(false);
+    };
+    if (helperPrefDropdownOpen) {
+      document.addEventListener('click', onHelperPrefClickAway);
+    }
+    return () => document.removeEventListener('click', onHelperPrefClickAway);
+  }, [helperPrefDropdownOpen]);
   const [submitError, setSubmitError] = useState("");
   const [loading, setLoading] = useState(false);
   const [successData, setSuccessData] = useState(null);
@@ -334,7 +358,7 @@ const CustomerPortal = () => {
   const stepFieldMap = useMemo(
     () => ({
       0: ["customerEmail", "customerPhone", "vehicleNumber"],
-      1: ["driverPhone", "helperPhone", "driverLanguage"],
+  1: ["driverPhone", "helperPhone", "driverLanguage", "helperName", "driverName", "helperLanguage"],
       // step 2 requires at least one document upload; use a special token
       2: ["_anyDocument"],
     }),
@@ -420,16 +444,8 @@ const CustomerPortal = () => {
   };
 
   const handleFileSelect = (field, file) => {
-    // Prevent overwriting an already uploaded file for the same type
-    if (files[field]) {
-      showPopupMessage(
-        `${
-          documentOptions.find((d) => d.id === field)?.label || field
-        } already uploaded`,
-        "warning"
-      );
-      return;
-    }
+    // Append file to the array for the selected type
+    // Validate file quickly
     let errorMessage = "";
     if (!ACCEPTED_TYPES.includes(file.type)) {
       errorMessage = "Only PDF, JPG, JPEG, or PNG files are accepted.";
@@ -443,10 +459,18 @@ const CustomerPortal = () => {
       }));
       return;
     }
-    setFiles((previous) => ({
-      ...previous,
-      [field]: file,
-    }));
+    setFiles((previous) => {
+      const existing = previous[field];
+      const arr = Array.isArray(existing)
+        ? existing
+        : existing
+        ? [existing]
+        : [];
+      return {
+        ...previous,
+        [field]: [...arr, file],
+      };
+    });
     clearFieldError(field);
   };
 
@@ -478,25 +502,35 @@ const CustomerPortal = () => {
       }));
       return;
     }
-    // Prevent uploading if selected doc type already has a file
-    if (files[selectedDocType]) {
-      showPopupMessage(
-        `${
-          documentOptions.find((d) => d.id === selectedDocType)?.label ||
-          selectedDocType
-        } already uploaded`,
-        "warning"
-      );
-      return;
-    }
-    // Map id names to allowed stored fields. We'll store dynamic docs under files with their id keys.
-    setFiles((previous) => ({ ...previous, [selectedDocType]: stagedFile }));
+    // Append staged file to selected document type (allow multiple of same type)
+    setFiles((previous) => {
+      const existing = previous[selectedDocType];
+      const arr = Array.isArray(existing)
+        ? existing
+        : existing
+        ? [existing]
+        : [];
+      return {
+        ...previous,
+        [selectedDocType]: [...arr, stagedFile],
+      };
+    });
     setStagedFile(null);
     clearFieldError(selectedDocType);
   };
 
-  const handleClearUploaded = (field) => {
-    setFiles((previous) => ({ ...previous, [field]: null }));
+  const handleClearUploaded = (field, index = null) => {
+    setFiles((previous) => {
+      const copy = { ...previous };
+      if (!Array.isArray(copy[field])) return copy;
+      if (index === null) {
+        // clear all
+        copy[field] = [];
+      } else {
+        copy[field] = copy[field].filter((_, i) => i !== index);
+      }
+      return copy;
+    });
     clearFieldError(field);
   };
 
@@ -534,36 +568,55 @@ const CustomerPortal = () => {
             validationErrors.driverPhone = result;
           }
         }
+        if (field === "driverName") {
+          if (!formData.driverName || !formData.driverName.trim()) {
+            validationErrors.driverName = "Driver name is required.";
+          } else if (formData.driverName.trim().length < 2) {
+            validationErrors.driverName = "Driver name must be at least 2 characters.";
+          }
+        }
         if (field === "helperPhone") {
           const result = validateHelperPhone(formData.helperPhone);
           if (result) {
             validationErrors.helperPhone = result;
           }
         }
+        if (field === "helperName") {
+          if (!formData.helperName || !formData.helperName.trim()) {
+            validationErrors.helperName = "Helper name is required.";
+          } else if (formData.helperName.trim().length < 2) {
+            validationErrors.helperName = "Helper name must be at least 2 characters.";
+          }
+        }
         if (field === "driverLanguage" && !formData.driverLanguage) {
-          validationErrors.driverLanguage =
-            "Driver language is required.";
+          validationErrors.driverLanguage = "Driver language is required.";
+        }
+        if (field === "helperLanguage" && !formData.helperLanguage) {
+          validationErrors.helperLanguage = "Helper language is required.";
         }
         if (field === "purchaseOrder") {
-          const result = validateFile(files.purchaseOrder, "Purchase Order");
+          const first = (files.purchaseOrder && files.purchaseOrder[0]) || null;
+          const result = validateFile(first, "Purchase Order");
           if (result) {
             validationErrors.purchaseOrder = result;
           }
         }
         if (field === "vehiclePapers") {
-          const result = validateFile(files.vehiclePapers, "Vehicle Papers");
+          const first = (files.vehiclePapers && files.vehiclePapers[0]) || null;
+          const result = validateFile(first, "Vehicle Papers");
           if (result) {
             validationErrors.vehiclePapers = result;
           }
         }
         if (field === "aadhaarCard") {
-          const result = validateFile(files.aadhaarCard, "Driver Aadhaar Card");
+          const first = (files.aadhaarCard && files.aadhaarCard[0]) || null;
+          const result = validateFile(first, "Driver Aadhaar Card");
           if (result) {
             validationErrors.aadhaarCard = result;
           }
         }
         if (field === "_anyDocument") {
-          const anyUploaded = Object.values(files).some((f) => f);
+          const anyUploaded = Object.values(files).some((arr) => Array.isArray(arr) ? arr.length > 0 : !!arr);
           if (!anyUploaded) {
             validationErrors.documents =
               "At least one document upload is required.";
@@ -577,10 +630,8 @@ const CustomerPortal = () => {
   );
 
   const handleNextStep = () => {
-    const fieldsToValidate = stepFieldMap[currentStep];
-    if (validateFields(fieldsToValidate)) {
-      setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
-    }
+    // allow moving between steps freely; final validation occurs on submit
+    setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
   };
 
   const handlePreviousStep = () => {
@@ -752,18 +803,31 @@ const CustomerPortal = () => {
     if (formData.helperPhone) {
       payload.append("helperPhone", formData.helperPhone);
     }
+    if (formData.driverName) {
+      payload.append("driverName", formData.driverName.trim());
+    }
+    if (formData.helperName) {
+      payload.append("helperName", formData.helperName.trim());
+    }
+    if (formData.helperLanguage) {
+      payload.append("helperLanguage", formData.helperLanguage);
+    }
     payload.append("driverLanguage", formData.driverLanguage);
-    // Append any uploaded files dynamically. Use snake_case API field names when possible.
-    Object.entries(files).forEach(([key, file]) => {
-      if (!file) return;
-      // map some known keys to expected API field names
-      const apiMap = {
-        purchaseOrder: "purchase_order",
-        vehiclePapers: "vehicle_papers",
-        aadhaarCard: "aadhaar_card",
-      };
+    // Append any uploaded files dynamically. Support multiple files per type.
+    const apiMap = {
+      purchaseOrder: "purchase_order",
+      vehiclePapers: "vehicle_papers",
+      aadhaarCard: "aadhaar_card",
+    };
+    Object.entries(files).forEach(([key, arrOrFile]) => {
+      if (!arrOrFile) return;
       const apiKey = apiMap[key] || key;
-      payload.append(apiKey, file);
+      if (Array.isArray(arrOrFile)) {
+        arrOrFile.forEach((file) => payload.append(apiKey, file));
+      } else {
+        // handle legacy single-file values
+        payload.append(apiKey, arrOrFile);
+      }
     });
 
     try {
@@ -1344,13 +1408,58 @@ const CustomerPortal = () => {
                     </h2>
                   </div>
                   <div className="mt-6 grid gap-6 lg:grid-cols-2">
+                    {/* Row 1: Names */}
                     <div>
-                      <label
-                        htmlFor="driverPhone"
-                        className="text-sm font-medium text-gray-700"
-                      >
-                        Driver Phone Number
-                        <span className="text-red-500"> *</span>
+                      <label htmlFor="driverName" className="text-sm font-medium text-gray-700">
+                        Driver name<span className="text-red-500"> *</span>
+                      </label>
+                      <input
+                        id="driverName"
+                        name="driverName"
+                        type="text"
+                        value={formData.driverName}
+                        onChange={(e) => handleInputChange("driverName", e.target.value)}
+                        placeholder="Driver name"
+                        className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                          errors.driverName ? "border-red-400 bg-red-50" : "border-gray-300 bg-white"
+                        }`}
+                        autoComplete="name"
+                      />
+                      {errors.driverName && (
+                        <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
+                          <AlertCircle className="h-4 w-4" aria-hidden="true" />
+                          <span>{errors.driverName}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <label htmlFor="helperName" className="text-sm font-medium text-gray-700">
+                        Helper name<span className="text-red-500"> *</span>
+                      </label>
+                      <input
+                        id="helperName"
+                        name="helperName"
+                        type="text"
+                        value={formData.helperName}
+                        onChange={(e) => handleInputChange("helperName", e.target.value)}
+                        placeholder="Helper name"
+                        className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                          errors.helperName ? "border-red-400 bg-red-50" : "border-gray-300 bg-white"
+                        }`}
+                        autoComplete="name"
+                      />
+                      {errors.helperName && (
+                        <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
+                          <AlertCircle className="h-4 w-4" aria-hidden="true" />
+                          <span>{errors.helperName}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Row 2: Phones */}
+                    <div>
+                      <label htmlFor="driverPhone" className="text-sm font-medium text-gray-700">
+                        Driver Phone no.<span className="text-red-500"> *</span>
                       </label>
                       <input
                         id="driverPhone"
@@ -1358,14 +1467,10 @@ const CustomerPortal = () => {
                         type="tel"
                         inputMode="numeric"
                         value={formData.driverPhone}
-                        onChange={(event) =>
-                          handleInputChange("driverPhone", event.target.value)
-                        }
+                        onChange={(e) => handleInputChange("driverPhone", e.target.value)}
                         placeholder="+91XXXXXXXXXX"
                         className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                          errors.driverPhone
-                            ? "border-red-400 bg-red-50 placeholder:text-red-400"
-                            : "border-gray-300 bg-white"
+                          errors.driverPhone ? "border-red-400 bg-red-50" : "border-gray-300 bg-white"
                         }`}
                       />
                       {errors.driverPhone && (
@@ -1376,11 +1481,8 @@ const CustomerPortal = () => {
                       )}
                     </div>
                     <div>
-                      <label
-                        htmlFor="helperPhone"
-                        className="text-sm font-medium text-gray-700"
-                      >
-                        Helper Phone Number (optional)
+                      <label htmlFor="helperPhone" className="text-sm font-medium text-gray-700">
+                        Helper Phone no.<span className="text-red-500"> *</span>
                       </label>
                       <input
                         id="helperPhone"
@@ -1388,14 +1490,10 @@ const CustomerPortal = () => {
                         type="tel"
                         inputMode="numeric"
                         value={formData.helperPhone}
-                        onChange={(event) =>
-                          handleInputChange("helperPhone", event.target.value)
-                        }
+                        onChange={(e) => handleInputChange("helperPhone", e.target.value)}
                         placeholder="+91XXXXXXXXXX"
                         className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                          errors.helperPhone
-                            ? "border-red-400 bg-red-50 placeholder:text-red-400"
-                            : "border-gray-300 bg-white"
+                          errors.helperPhone ? "border-red-400 bg-red-50" : "border-gray-300 bg-white"
                         }`}
                       />
                       {errors.helperPhone && (
@@ -1405,19 +1503,14 @@ const CustomerPortal = () => {
                         </div>
                       )}
                     </div>
-                    <div className="lg:col-span-2">
-                      <label
-                        htmlFor="driverLanguage"
-                        className="text-sm font-medium text-gray-700"
-                      >
-                        Driver Language
-                        <span className="text-red-500"> *</span>
+
+                    {/* Row 3: Languages */}
+                    <div>
+                      <label htmlFor="driverLanguage" className="text-sm font-medium text-gray-700">
+                        Driver Language<span className="text-red-500"> *</span>
                       </label>
                       <div className="relative mt-2">
-                        <Globe
-                          className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400"
-                          aria-hidden="true"
-                        />
+                        <Globe className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400" aria-hidden="true" />
                         <div className="relative max-w-md">
                           <button
                             ref={prefButtonRef}
@@ -1426,16 +1519,7 @@ const CustomerPortal = () => {
                             aria-expanded={prefDropdownOpen}
                             onClick={() => {
                               setPrefDropdownOpen((s) => !s);
-                              setPrefHighlight(
-                                languages.findIndex((l) => l.value === formData.driverLanguage)
-                              );
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                setPrefDropdownOpen(true);
-                                setTimeout(() => prefListRef.current?.focus?.(), 0);
-                              }
+                              setPrefHighlight(languages.findIndex((l) => l.value === formData.driverLanguage));
                             }}
                             className={`w-full rounded-xl border ${errors.driverLanguage ? 'border-red-400 bg-red-50' : 'border-gray-300'} bg-white px-4 py-3 text-left text-sm font-medium text-gray-900 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500`}
                           >
@@ -1447,19 +1531,11 @@ const CustomerPortal = () => {
                               </svg>
                             </div>
                           </button>
-
                           {prefDropdownOpen && (
                             <div className="absolute left-0 right-0 z-40 mt-2 rounded-xl bg-white border border-gray-200 shadow-lg">
                               <ul role="listbox" tabIndex={-1} ref={prefListRef} className="max-h-60 overflow-auto py-2">
                                 {languages.map((opt, idx) => (
-                                  <li
-                                    key={opt.value}
-                                    role="option"
-                                    aria-selected={formData.driverLanguage === opt.value}
-                                    onClick={() => { handleInputChange('driverLanguage', opt.value); setPrefDropdownOpen(false); }}
-                                    onMouseEnter={() => setPrefHighlight(idx)}
-                                    className={`cursor-pointer px-4 py-2 text-sm ${formData.driverLanguage === opt.value ? 'bg-blue-50 text-blue-700 font-semibold' : prefHighlight === idx ? 'bg-gray-100' : 'text-gray-700'}`}
-                                  >
+                                  <li key={opt.value} role="option" aria-selected={formData.driverLanguage === opt.value} onClick={() => { handleInputChange('driverLanguage', opt.value); setPrefDropdownOpen(false); }} onMouseEnter={() => setPrefHighlight(idx)} className={`cursor-pointer px-4 py-2 text-sm ${formData.driverLanguage === opt.value ? 'bg-blue-50 text-blue-700 font-semibold' : prefHighlight === idx ? 'bg-gray-100' : 'text-gray-700'}`}>
                                     {opt.label}
                                   </li>
                                 ))}
@@ -1472,6 +1548,53 @@ const CustomerPortal = () => {
                         <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
                           <AlertCircle className="h-4 w-4" aria-hidden="true" />
                           <span>{errors.driverLanguage}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label htmlFor="helperLanguage" className="text-sm font-medium text-gray-700">
+                        Helper Language<span className="text-red-500"> *</span>
+                      </label>
+                      <div className="relative mt-2">
+                        <Globe className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400" aria-hidden="true" />
+                        <div className="relative max-w-md">
+                          <button
+                            ref={helperPrefButtonRef}
+                            type="button"
+                            aria-haspopup="listbox"
+                            aria-expanded={helperPrefDropdownOpen}
+                            onClick={() => {
+                              setHelperPrefDropdownOpen((s) => !s);
+                              setHelperPrefHighlight(languages.findIndex((l) => l.value === formData.helperLanguage));
+                            }}
+                            className={`w-full rounded-xl border ${errors.helperLanguage ? 'border-red-400 bg-red-50' : 'border-gray-300'} bg-white px-4 py-3 text-left text-sm font-medium text-gray-900 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Globe className="h-4 w-4 text-gray-400" />
+                              <span>{languages.find((l) => l.value === formData.helperLanguage)?.label}</span>
+                              <svg className={`ml-auto h-4 w-4 text-gray-500 transform ${helperPrefDropdownOpen ? 'rotate-180' : 'rotate-0'}`} viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                                <path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            </div>
+                          </button>
+                          {helperPrefDropdownOpen && (
+                            <div className="absolute left-0 right-0 z-40 mt-2 rounded-xl bg-white border border-gray-200 shadow-lg">
+                              <ul role="listbox" tabIndex={-1} ref={helperPrefListRef} className="max-h-60 overflow-auto py-2">
+                                {languages.map((opt, idx) => (
+                                  <li key={opt.value} role="option" aria-selected={formData.helperLanguage === opt.value} onClick={() => { handleInputChange('helperLanguage', opt.value); setHelperPrefDropdownOpen(false); }} onMouseEnter={() => setHelperPrefHighlight(idx)} className={`cursor-pointer px-4 py-2 text-sm ${formData.helperLanguage === opt.value ? 'bg-blue-50 text-blue-700 font-semibold' : helperPrefHighlight === idx ? 'bg-gray-100' : 'text-gray-700'}`}>
+                                    {opt.label}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {errors.helperLanguage && (
+                        <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
+                          <AlertCircle className="h-4 w-4" aria-hidden="true" />
+                          <span>{errors.helperLanguage}</span>
                         </div>
                       )}
                     </div>
@@ -1687,31 +1810,21 @@ const CustomerPortal = () => {
                                           selectedDocType === opt.id
                                         }
                                         aria-disabled={disabled}
-                                        onClick={() => {
-                                          if (disabled) return;
-                                          setSelectedDocType(opt.id);
-                                          setDocDropdownOpen(false);
-                                        }}
-                                        onMouseEnter={() => {
-                                          if (!disabled) setDocHighlight(idx);
-                                        }}
-                                        className={`px-4 py-2 text-sm ${
-                                          disabled
-                                            ? "text-gray-400 opacity-60 cursor-not-allowed"
-                                            : "cursor-pointer"
-                                        } ${
-                                          selectedDocType === opt.id
-                                            ? "bg-blue-50 text-blue-700 font-semibold"
-                                            : docHighlight === idx
-                                            ? !disabled
-                                              ? "bg-gray-100"
-                                              : ""
-                                            : "text-gray-700"
-                                        }`}
-                                      >
-                                        {opt.label}
-                                        {disabled ? " — uploaded" : ""}
-                                      </li>
+                                                  onClick={() => {
+                                                    setSelectedDocType(opt.id);
+                                                    setDocDropdownOpen(false);
+                                                  }}
+                                                  onMouseEnter={() => setDocHighlight(idx)}
+                                                  className={`px-4 py-2 text-sm cursor-pointer ${
+                                                    selectedDocType === opt.id
+                                                      ? "bg-blue-50 text-blue-700 font-semibold"
+                                                      : docHighlight === idx
+                                                      ? "bg-gray-100"
+                                                      : "text-gray-700"
+                                                  }`}
+                                                >
+                                                  {opt.label}
+                                                </li>
                                     );
                                   })}
                               </ul>
@@ -1803,43 +1916,39 @@ const CustomerPortal = () => {
                             {errors.documents}
                           </div>
                         )}
-                        {Object.entries(files)
-                          .filter(([, f]) => f)
-                          .map(([key, file]) => {
-                            const opt = documentOptions.find(
-                              (d) => d.id === key
-                            );
-                            const label = opt ? opt.label : key;
-                            return (
-                              <div
-                                key={key}
-                                className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3"
-                              >
-                                <div className="flex items-center gap-3">
-                                  <FileText className="h-5 w-5 text-blue-600" />
-                                  <div>
-                                    <p className="text-sm font-medium text-gray-800">
-                                      {label}
-                                    </p>
-                                    <p className="text-xs text-gray-500">
-                                      {file.name}
-                                    </p>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleClearUploaded(key)}
-                                    className="inline-flex items-center gap-2 rounded-md border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
-                                  >
-                                    Clear
-                                  </button>
+                        {documentOptions.map((opt) => {
+                          const arr = files[opt.id] || [];
+                          if (!Array.isArray(arr) || arr.length === 0) return null;
+                          return arr.map((file, idx) => (
+                            <div
+                              key={`${opt.id}-${idx}`}
+                              className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3"
+                            >
+                              <div className="flex items-center gap-3">
+                                <FileText className="h-5 w-5 text-blue-600" />
+                                <div>
+                                  <p className="text-sm font-medium text-gray-800">
+                                    {opt.label}
+                                  </p>
+                                  <p className="text-xs text-gray-500">{file.name}</p>
                                 </div>
                               </div>
-                            );
-                          })}
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleClearUploaded(opt.id, idx)}
+                                  className="inline-flex items-center gap-2 rounded-md border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
+                                >
+                                  Clear
+                                </button>
+                              </div>
+                            </div>
+                          ));
+                        })}
 
-                        {Object.values(files).every((f) => !f) && (
+                        {Object.values(files).every(
+                          (arr) => !Array.isArray(arr) || arr.length === 0
+                        ) && (
                           <div className="rounded-md border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-500">
                             No documents uploaded yet. Use the dropdown above to
                             select a type and upload a document.
