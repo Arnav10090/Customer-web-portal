@@ -267,6 +267,31 @@ const CustomerPortal = () => {
     });
   }, []);
 
+  const openTokenPanel = useCallback(() => {
+    setShowTokenManager(true);
+  }, []);
+
+  const handleTokenSave = useCallback(() => {
+    const trimmed = tokenDraft.trim();
+    if (!trimmed) {
+      storeToken('');
+      setAuthToken('');
+      setShowTokenManager(true);
+      return;
+    }
+    storeToken(trimmed);
+    setAuthToken(trimmed);
+    setShowTokenManager(false);
+    setSubmitError((previous) => (previous === missingTokenMessage ? '' : previous));
+  }, [tokenDraft, missingTokenMessage]);
+
+  const handleTokenClear = useCallback(() => {
+    storeToken('');
+    setAuthToken('');
+    setTokenDraft('');
+    setShowTokenManager(true);
+  }, []);
+
   const handleInputChange = (field, value) => {
     let nextValue = value;
     if (field === 'vehicleNumber') {
