@@ -417,9 +417,9 @@ const CustomerPortal = () => {
   };
 
   const handleSubmit = async () => {
-    const token = localStorage.getItem('customerToken') || '';
-    if (!token) {
-      setSubmitError('Authentication token is missing. Please sign in again.');
+    if (!authToken) {
+      setSubmitError(missingTokenMessage);
+      openTokenPanel();
       return;
     }
     if (!validateAll()) {
@@ -442,7 +442,7 @@ const CustomerPortal = () => {
       const response = await fetch('/api/submissions/create', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${authToken}`
         },
         body: payload
       });
