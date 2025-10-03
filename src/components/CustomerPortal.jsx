@@ -479,6 +479,9 @@ const CustomerPortal = () => {
         } catch (parseError) {
           // ignore parsing errors and use default message
         }
+        if (response.status === 401) {
+          openTokenPanel();
+        }
         throw new Error(message);
       }
 
