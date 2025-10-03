@@ -292,6 +292,10 @@ const CustomerPortal = () => {
     setShowTokenManager(true);
   }, []);
 
+  const toggleTokenPanel = useCallback(() => {
+    setShowTokenManager((previous) => !previous);
+  }, []);
+
   const handleInputChange = (field, value) => {
     let nextValue = value;
     if (field === 'vehicleNumber') {
