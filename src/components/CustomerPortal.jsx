@@ -572,6 +572,17 @@ const CustomerPortal = () => {
                   </p>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={toggleTokenPanel}
+                className="inline-flex items-center justify-center rounded-xl border border-blue-500 px-4 py-2 text-sm font-semibold text-blue-600 transition-all duration-200 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              >
+                {showTokenManager
+                  ? 'Hide Access Token'
+                  : authToken
+                  ? 'Manage Access Token'
+                  : 'Set Access Token'}
+              </button>
             </header>
 
             <nav className="grid gap-3 sm:grid-cols-3">
