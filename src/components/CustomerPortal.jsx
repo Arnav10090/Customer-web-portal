@@ -207,6 +207,10 @@ const DocumentUploadField = ({
 };
 
 const CustomerPortal = () => {
+  const initialToken = getStoredToken();
+  const [authToken, setAuthToken] = useState(initialToken);
+  const [tokenDraft, setTokenDraft] = useState(initialToken);
+  const [showTokenManager, setShowTokenManager] = useState(!initialToken);
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState(initialFormData);
   const [files, setFiles] = useState(initialFiles);
@@ -214,6 +218,11 @@ const CustomerPortal = () => {
   const [submitError, setSubmitError] = useState('');
   const [loading, setLoading] = useState(false);
   const [successData, setSuccessData] = useState(null);
+  const missingTokenMessage = 'Authentication token is missing. Please sign in again.';
+
+  useEffect(() => {
+    setTokenDraft(authToken);
+  }, [authToken]);
 
   const stepFieldMap = useMemo(
     () => ({
