@@ -410,17 +410,50 @@ const CustomerPortal = () => {
     setMockNotice('');
   };
 
-  const handleDownloadQr = () => {
+  const makeDemoQr = (vehicleNumber, driverPhone) => {
+    const payload = { type: 'ENTRY_QR_DEMO', vehicleNumber, driverPhone, ts: Date.now() };
+    const data = encodeURIComponent(JSON.stringify(payload));
+    return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${data}`;
+  };
+
+  const handleDownloadQr = async () => {
     if (!successData?.qrCodeImage) {
       return;
     }
-    const link = document.createElement('a');
     const sanitizedVehicle = (successData.vehicleNumber || 'vehicle').replace(/[^A-Z0-9-]+/gi, '-');
-    link.href = successData.qrCodeImage;
-    link.download = `entry-qr-${sanitizedVehicle}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const filename = `entry-qr-${sanitizedVehicle}.png`;
+
+    try {
+      const imageSrc = successData.qrCodeImage;
+
+      // Data URLs can be downloaded directly
+      if (imageSrc.startsWith('data:')) {
+        const link = document.createElement('a');
+        link.href = imageSrc;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        return;
+      }
+
+      // For cross-origin URLs, fetch the image as a blob and create an object URL
+      const response = await fetch(imageSrc);
+      if (!response.ok) {
+        throw new Error('Failed to fetch QR image for download.');
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setSubmitError('Unable to download QR code. Please try opening the image in a new tab.');
+    }
   };
 
   const handleSubmit = async () => {
@@ -459,7 +492,7 @@ const CustomerPortal = () => {
         if (response.status === 404) {
           const fallbackQr = 'data:image/png;base64,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';
           setSuccessData({
-            qrCodeImage: fallbackQr,
+            qrCodeImage: makeDemoQr(formData.vehicleNumber.trim(), formData.driverPhone),
             vehicleNumber: formData.vehicleNumber.trim(),
             driverPhone: formData.driverPhone
           });
@@ -497,7 +530,18 @@ const CustomerPortal = () => {
       });
       setMockNotice('');
     } catch (error) {
-      setSubmitError(error.message);
+      if (!successData) {
+        const demoUrl = makeDemoQr(formData.vehicleNumber.trim(), formData.driverPhone);
+        setSuccessData({
+          qrCodeImage: demoUrl,
+          vehicleNumber: formData.vehicleNumber.trim(),
+          driverPhone: formData.driverPhone
+        });
+        setMockNotice('Submission API is unavailable. A demo QR code was generated for testing purposes.');
+        setSubmitError('');
+      } else {
+        setSubmitError(error.message);
+      }
     } finally {
       setLoading(false);
     }
