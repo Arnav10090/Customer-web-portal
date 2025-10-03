@@ -410,6 +410,12 @@ const CustomerPortal = () => {
     setMockNotice('');
   };
 
+  const makeDemoQr = (vehicleNumber, driverPhone) => {
+    const payload = { type: 'ENTRY_QR_DEMO', vehicleNumber, driverPhone, ts: Date.now() };
+    const data = encodeURIComponent(JSON.stringify(payload));
+    return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${data}`;
+  };
+
   const handleDownloadQr = () => {
     if (!successData?.qrCodeImage) {
       return;
@@ -497,7 +503,18 @@ const CustomerPortal = () => {
       });
       setMockNotice('');
     } catch (error) {
-      setSubmitError(error.message);
+      if (!successData) {
+        const demoUrl = makeDemoQr(formData.vehicleNumber.trim(), formData.driverPhone);
+        setSuccessData({
+          qrCodeImage: demoUrl,
+          vehicleNumber: formData.vehicleNumber.trim(),
+          driverPhone: formData.driverPhone
+        });
+        setMockNotice('Submission API is unavailable. A demo QR code was generated for testing purposes.');
+        setSubmitError('');
+      } else {
+        setSubmitError(error.message);
+      }
     } finally {
       setLoading(false);
     }
