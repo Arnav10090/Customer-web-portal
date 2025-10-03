@@ -407,6 +407,7 @@ const CustomerPortal = () => {
     setSubmitError('');
     setCurrentStep(0);
     setSuccessData(null);
+    setMockNotice('');
   };
 
   const handleDownloadQr = () => {
