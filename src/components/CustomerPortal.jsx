@@ -290,7 +290,8 @@ const CustomerPortal = () => {
     setAuthToken('');
     setTokenDraft('');
     setShowTokenManager(true);
-  }, []);
+    setSubmitError(missingTokenMessage);
+  }, [missingTokenMessage]);
 
   const toggleTokenPanel = useCallback(() => {
     setShowTokenManager((previous) => !previous);
