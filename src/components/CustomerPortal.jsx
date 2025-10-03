@@ -434,6 +434,7 @@ const CustomerPortal = () => {
     }
     setLoading(true);
     setSubmitError('');
+    setMockNotice('');
     const payload = new FormData();
     payload.append('vehicleNumber', formData.vehicleNumber.trim());
     payload.append('driverPhone', formData.driverPhone);
