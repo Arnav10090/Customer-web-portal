@@ -115,6 +115,8 @@ const DocumentUploadField = ({
   onFileSelect,
   error
 }) => {
+  const inputRef = useRef(null);
+
   const handleFileChange = (event) => {
     const selected = event.target.files?.[0];
     if (selected) {
@@ -136,7 +138,7 @@ const DocumentUploadField = ({
 
   const triggerBrowse = (event) => {
     event.preventDefault();
-    document.getElementById(`${id}-input`)?.click();
+    inputRef.current?.click();
   };
 
   return (
@@ -180,6 +182,7 @@ const DocumentUploadField = ({
       </div>
       <input
         id={`${id}-input`}
+        ref={inputRef}
         name={id}
         type="file"
         accept=".pdf,.jpg,.jpeg,.png"
