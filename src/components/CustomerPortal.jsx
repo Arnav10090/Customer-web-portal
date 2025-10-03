@@ -585,6 +585,53 @@ const CustomerPortal = () => {
               </button>
             </header>
 
+            {!authToken && (
+              <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <AlertCircle className="mt-0.5 h-5 w-5" aria-hidden="true" />
+                <div>
+                  <p className="font-semibold">Authorization required</p>
+                  <p>Set your customer access token to submit entries successfully.</p>
+                </div>
+              </div>
+            )}
+
+            {showTokenManager && (
+              <section className="rounded-2xl border border-blue-200 bg-blue-50 p-6">
+                <h2 className="text-lg font-semibold text-blue-900">Customer Access Token</h2>
+                <p className="mt-2 text-sm text-blue-700">
+                  Paste the access token shared with your organization administrator. This token will be used to authorize gate entry submissions.
+                </p>
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <input
+                    type="text"
+                    value={tokenDraft}
+                    onChange={(event) => setTokenDraft(event.target.value)}
+                    placeholder="Enter access token"
+                    className="w-full rounded-xl border border-blue-300 bg-white px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  />
+                  <div className="flex w-full gap-2 sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={handleTokenSave}
+                      disabled={!tokenDraft.trim()}
+                      className="inline-flex w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-blue-300"
+                    >
+                      Save Token
+                    </button>
+                    {authToken && (
+                      <button
+                        type="button"
+                        onClick={handleTokenClear}
+                        className="inline-flex w-full items-center justify-center rounded-xl border border-blue-500 px-4 py-3 text-sm font-semibold text-blue-600 transition-all duration-200 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </section>
+            )}
+
             <nav className="grid gap-3 sm:grid-cols-3">
               {steps.map((step) => {
                 const isActive = currentStep === step.id;
