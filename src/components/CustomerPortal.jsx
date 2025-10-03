@@ -491,6 +491,7 @@ const CustomerPortal = () => {
         vehicleNumber: submission.vehicleNumber || formData.vehicleNumber.trim(),
         driverPhone: formData.driverPhone
       });
+      setMockNotice('');
     } catch (error) {
       setSubmitError(error.message);
     } finally {
