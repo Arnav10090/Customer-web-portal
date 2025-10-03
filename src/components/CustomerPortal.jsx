@@ -515,6 +515,12 @@ const CustomerPortal = () => {
                 </p>
               </div>
             </div>
+            {mockNotice && (
+              <div className="mt-6 flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                <AlertCircle className="mt-0.5 h-5 w-5" aria-hidden="true" />
+                <span>{mockNotice}</span>
+              </div>
+            )}
             <div className="mt-8 grid gap-8 lg:grid-cols-2">
               <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-200 bg-gray-50 p-6">
                 <img
