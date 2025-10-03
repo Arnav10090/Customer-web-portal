@@ -464,6 +464,7 @@ const CustomerPortal = () => {
             driverPhone: formData.driverPhone
           });
           setMockNotice('Submission API is unavailable. A demo QR code was generated for testing purposes.');
+          setSubmitError('');
           return;
         }
         let message = 'Unable to submit entry. Please try again.';
