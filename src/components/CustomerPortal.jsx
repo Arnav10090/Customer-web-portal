@@ -229,6 +229,7 @@ const CustomerPortal = () => {
   const [submitError, setSubmitError] = useState('');
   const [loading, setLoading] = useState(false);
   const [successData, setSuccessData] = useState(null);
+  const [mockNotice, setMockNotice] = useState('');
   const missingTokenMessage = 'Authentication token is missing. Please sign in again.';
 
   useEffect(() => {
