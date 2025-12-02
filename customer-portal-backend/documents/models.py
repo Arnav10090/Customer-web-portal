@@ -7,14 +7,15 @@ import shutil
 from datetime import datetime
 
 DOCUMENT_TYPES = (
-    ('purchase_order', 'Purchase Order'),
     ('vehicle_registration', 'Vehicle Registration'),
     ('vehicle_insurance', 'Vehicle Insurance'),
-    ('puc', 'PUC'),
-    ('driver_license', 'Driver License'),
-    ('transportation_approval', 'Transportation Approval'),
-    ('payment_approval', 'Payment Approval'),
-    ('vendor_approval', 'Vendor Approval'),
+    ('vehicle_puc', 'Vehicle PUC'),
+    ('driver_aadhar', 'Driver Aadhar Card'),
+    ('helper_aadhar', 'Helper Aadhar Card'),
+    ('po', 'Purchase Order (PO)'),
+    ('do', 'Delivery Order (DO)'),
+    ('before_weighing', 'Before Weighing Receipt'),
+    ('after_weighing', 'After Weighing Receipt'),
 )
 
 class CustomerDocument(models.Model):

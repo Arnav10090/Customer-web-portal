@@ -5,7 +5,7 @@ from .models import CustomerUser
 class CustomerUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomerUser
-        fields = ['id', 'email', 'username', 'phone', 'company_name', 'date_joined']
+        fields = ['id', 'email', 'username', 'first_name', 'last_name', 'phone', 'company_name', 'date_joined']
         read_only_fields = ['id', 'date_joined']
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -14,19 +14,19 @@ class RegisterSerializer(serializers.ModelSerializer):
         required=True,
         validators=[validate_password]
     )
-    password2 = serializers.CharField(write_only=True, required=True)
+    verify_password = serializers.CharField(write_only=True, required=True)
 
     class Meta:
         model = CustomerUser
-        fields = ['email', 'username', 'password', 'password2', 'phone', 'company_name']
+        fields = ['email', 'username', 'first_name', 'last_name', 'password', 'verify_password', 'phone', 'company_name']
 
     def validate(self, attrs):
-        if attrs['password'] != attrs['password2']:
+        if attrs['password'] != attrs['verify_password']:
             raise serializers.ValidationError({"password": "Passwords don't match"})
         return attrs
 
     def create(self, validated_data):
-        validated_data.pop('password2')
+        validated_data.pop('verify_password')
         user = CustomerUser.objects.create_user(**validated_data)
         return user
 

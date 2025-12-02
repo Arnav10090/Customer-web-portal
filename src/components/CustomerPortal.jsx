@@ -17,6 +17,7 @@ import {
   User,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { submissionsAPI, documentsAPI } from "../services/api";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const ACCEPTED_TYPES = [
@@ -29,20 +30,31 @@ const ACCEPTED_TYPES = [
 const languages = [
   { value: "en", label: "English (en)" },
   { value: "hi", label: "Hindi - हिंदी (hi)" },
+  { value: "ta", label: "Tamil - தமிழ் (ta)" },
+  { value: "te", label: "Telugu - తెలుగు (te)" },
+  { value: "kn", label: "Kannada - ಕನ್ನಡ (kn)" },
+  { value: "ml", label: "Malayalam - മലയാളം (ml)" },
   { value: "mr", label: "Marathi - मराठी (mr)" },
   { value: "gu", label: "Gujarati - ગુજરાતી (gu)" },
-  { value: "ta", label: "Tamil - தமிழ் (ta)" },
+  { value: "bn", label: "Bengali - বাংলা (bn)" },
+  { value: "or", label: "Odia - ଓଡ଼ିଆ (or)" },
+  { value: "pa", label: "Punjabi - ਪੰਜਾਬੀ (pa)" },
+  { value: "as", label: "Assamese - অসমীয়া (as)" },
+  { value: "ur", label: "Urdu - اردو (ur)" },
+  { value: "sa", label: "Sanskrit - संस्कृत (sa)" },
+  { value: "mai", label: "Maithili - मैथिली (mai)" },
 ];
 
 const documentOptions = [
-  { id: "purchaseOrder", label: "Purchase Order (PO)" },
   { id: "vehicleRegistration", label: "Vehicle Registration" },
   { id: "vehicleInsurance", label: "Vehicle Insurance" },
-  { id: "puc", label: "PUC" },
-  { id: "driverLicense", label: "Driver License" },
-  { id: "transportationApproval", label: "Transportation Approval" },
-  { id: "paymentApproval", label: "Payment Approval" },
-  { id: "vendorApproval", label: "Vendor Approval" },
+  { id: "vehiclePuc", label: "Vehicle PUC" },
+  { id: "driverAadhar", label: "Driver Aadhar Card" },
+  { id: "helperAadhar", label: "Helper Aadhar Card" },
+  { id: "po", label: "Purchase Order (PO)" },
+  { id: "do", label: "Delivery Order (DO)" },
+  { id: "beforeWeighing", label: "Before Weighing Receipt" },
+  { id: "afterWeighing", label: "After Weighing Receipt" },
 ];
 
 const steps = [
@@ -88,24 +100,6 @@ documentOptions.forEach((opt) => {
     initialFiles[opt.id] = [];
   }
 });
-
-const getStoredToken = () => {
-  if (typeof window === "undefined") {
-    return "";
-  }
-  return localStorage.getItem("customerToken") || "";
-};
-
-const storeToken = (value) => {
-  if (typeof window === "undefined") {
-    return;
-  }
-  if (value) {
-    localStorage.setItem("customerToken", value);
-  } else {
-    localStorage.removeItem("customerToken");
-  }
-};
 
 const validateVehicleNumber = (value) => {
   if (!value.trim()) {
@@ -279,11 +273,7 @@ const DocumentUploadField = ({
 };
 
 const CustomerPortal = () => {
-  const { logout } = useAuth();
-  const initialToken = getStoredToken();
-  const [authToken, setAuthToken] = useState(initialToken);
-  const [tokenDraft, setTokenDraft] = useState(initialToken);
-  const [showTokenManager, setShowTokenManager] = useState(!initialToken);
+  const { logout, user } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState(initialFormData);
   const [files, setFiles] = useState(initialFiles);
@@ -296,6 +286,17 @@ const CustomerPortal = () => {
   const [logoutLoading, setLogoutLoading] = useState(false);
   const docButtonRef = useRef(null);
   const docListRef = useRef(null);
+
+  // Auto-populate customer details from logged-in user
+  useEffect(() => {
+    if (user && user.email && user.phone) {
+      setFormData((prev) => ({
+        ...prev,
+        customerEmail: user.email,
+        customerPhone: user.phone,
+      }));
+    }
+  }, [user]);
 
   // click-away to close dropdown
   useEffect(() => {
@@ -317,14 +318,14 @@ const CustomerPortal = () => {
   }, [docDropdownOpen]);
   // preferred language custom dropdown state
   const [prefDropdownOpen, setPrefDropdownOpen] = useState(false);
-  const [prefSearch, setPrefSearch] = useState('');
+  const [prefSearch, setPrefSearch] = useState("");
   const [prefHighlight, setPrefHighlight] = useState(0);
   const prefButtonRef = useRef(null);
   const prefListRef = useRef(null);
 
   // helper preferred language dropdown state (for helper language)
   const [helperPrefDropdownOpen, setHelperPrefDropdownOpen] = useState(false);
-  const [helperPrefSearch, setHelperPrefSearch] = useState('');
+  const [helperPrefSearch, setHelperPrefSearch] = useState("");
   const [helperPrefHighlight, setHelperPrefHighlight] = useState(0);
   const helperPrefButtonRef = useRef(null);
   const helperPrefListRef = useRef(null);
@@ -334,13 +335,18 @@ const CustomerPortal = () => {
     const onPrefClickAway = (e) => {
       if (!prefButtonRef.current) return;
       if (prefButtonRef.current.contains(e.target)) return;
-      if (prefListRef.current && prefListRef.current.contains && prefListRef.current.contains(e.target)) return;
+      if (
+        prefListRef.current &&
+        prefListRef.current.contains &&
+        prefListRef.current.contains(e.target)
+      )
+        return;
       setPrefDropdownOpen(false);
     };
     if (prefDropdownOpen) {
-      document.addEventListener('click', onPrefClickAway);
+      document.addEventListener("click", onPrefClickAway);
     }
-    return () => document.removeEventListener('click', onPrefClickAway);
+    return () => document.removeEventListener("click", onPrefClickAway);
   }, [prefDropdownOpen]);
 
   // click-away to close helper language dropdown
@@ -348,13 +354,18 @@ const CustomerPortal = () => {
     const onHelperPrefClickAway = (e) => {
       if (!helperPrefButtonRef.current) return;
       if (helperPrefButtonRef.current.contains(e.target)) return;
-      if (helperPrefListRef.current && helperPrefListRef.current.contains && helperPrefListRef.current.contains(e.target)) return;
+      if (
+        helperPrefListRef.current &&
+        helperPrefListRef.current.contains &&
+        helperPrefListRef.current.contains(e.target)
+      )
+        return;
       setHelperPrefDropdownOpen(false);
     };
     if (helperPrefDropdownOpen) {
-      document.addEventListener('click', onHelperPrefClickAway);
+      document.addEventListener("click", onHelperPrefClickAway);
     }
-    return () => document.removeEventListener('click', onHelperPrefClickAway);
+    return () => document.removeEventListener("click", onHelperPrefClickAway);
   }, [helperPrefDropdownOpen]);
   const [submitError, setSubmitError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -365,22 +376,26 @@ const CustomerPortal = () => {
   const [popupMessage, setPopupMessage] = useState("");
   const [popupVariant, setPopupVariant] = useState("info");
   const [confirmModal, setConfirmModal] = useState({ show: false, type: null });
-  const [saveNotification, setSaveNotification] = useState({ show: false, type: null });
+  const [saveNotification, setSaveNotification] = useState({
+    show: false,
+    type: null,
+  });
   const [driverInfoSaved, setDriverInfoSaved] = useState(false);
   const [helperInfoSaved, setHelperInfoSaved] = useState(false);
   const [driverModified, setDriverModified] = useState(false);
   const [helperModified, setHelperModified] = useState(false);
-  const missingTokenMessage =
-    "Authentication token is missing. Please sign in again.";
-
-  useEffect(() => {
-    setTokenDraft(authToken);
-  }, [authToken]);
 
   const stepFieldMap = useMemo(
     () => ({
       0: ["customerEmail", "customerPhone", "vehicleNumber", "poNumber"],
-  1: ["driverPhone", "helperPhone", "driverLanguage", "helperName", "driverName", "helperLanguage"],
+      1: [
+        "driverPhone",
+        "helperPhone",
+        "driverLanguage",
+        "helperName",
+        "driverName",
+        "helperLanguage",
+      ],
       // step 2 requires at least one document upload; use a special token
       2: ["_anyDocument"],
     }),
@@ -412,38 +427,6 @@ const CustomerPortal = () => {
       delete updated[field];
       return updated;
     });
-  }, []);
-
-  const openTokenPanel = useCallback(() => {
-    setShowTokenManager(true);
-  }, []);
-
-  const handleTokenSave = useCallback(() => {
-    const trimmed = tokenDraft.trim();
-    if (!trimmed) {
-      storeToken("");
-      setAuthToken("");
-      setShowTokenManager(true);
-      return;
-    }
-    storeToken(trimmed);
-    setAuthToken(trimmed);
-    setShowTokenManager(false);
-    setSubmitError((previous) =>
-      previous === missingTokenMessage ? "" : previous
-    );
-  }, [tokenDraft, missingTokenMessage]);
-
-  const handleTokenClear = useCallback(() => {
-    storeToken("");
-    setAuthToken("");
-    setTokenDraft("");
-    setShowTokenManager(true);
-    setSubmitError(missingTokenMessage);
-  }, [missingTokenMessage]);
-
-  const toggleTokenPanel = useCallback(() => {
-    setShowTokenManager((previous) => !previous);
   }, []);
 
   const handleLogout = useCallback(async () => {
@@ -629,7 +612,8 @@ const CustomerPortal = () => {
           if (!formData.driverName || !formData.driverName.trim()) {
             validationErrors.driverName = "Driver name is required.";
           } else if (formData.driverName.trim().length < 2) {
-            validationErrors.driverName = "Driver name must be at least 2 characters.";
+            validationErrors.driverName =
+              "Driver name must be at least 2 characters.";
           }
         }
         if (field === "helperPhone") {
@@ -642,7 +626,8 @@ const CustomerPortal = () => {
           if (!formData.helperName || !formData.helperName.trim()) {
             validationErrors.helperName = "Helper name is required.";
           } else if (formData.helperName.trim().length < 2) {
-            validationErrors.helperName = "Helper name must be at least 2 characters.";
+            validationErrors.helperName =
+              "Helper name must be at least 2 characters.";
           }
         }
         if (field === "driverLanguage" && !formData.driverLanguage) {
@@ -673,7 +658,9 @@ const CustomerPortal = () => {
           }
         }
         if (field === "_anyDocument") {
-          const anyUploaded = Object.values(files).some((arr) => Array.isArray(arr) ? arr.length > 0 : !!arr);
+          const anyUploaded = Object.values(files).some((arr) =>
+            Array.isArray(arr) ? arr.length > 0 : !!arr
+          );
           if (!anyUploaded) {
             validationErrors.documents =
               "At least one document upload is required.";
@@ -687,6 +674,16 @@ const CustomerPortal = () => {
   );
 
   const handleNextStep = () => {
+    // Validate current step fields before moving to next step
+    const currentStepFields = stepFieldMap[currentStep];
+    if (!validateFields(currentStepFields)) {
+      showPopupMessage(
+        "Please fill in all required fields before proceeding.",
+        "warning"
+      );
+      return;
+    }
+
     // Require saving only the sections that were modified
     if (currentStep === 1) {
       const missingDriverSave = driverModified && !driverInfoSaved;
@@ -717,11 +714,11 @@ const CustomerPortal = () => {
 
   const handlePreviousStep = () => {
     setCurrentStep((prev) => Math.max(prev - 1, 0));
-  }
+  };
 
-  const isStep1Complete = (
-    (!driverModified || driverInfoSaved) && (!helperModified || helperInfoSaved)
-  );
+  const isStep1Complete =
+    (!driverModified || driverInfoSaved) &&
+    (!helperModified || helperInfoSaved);
 
   const validateAll = useCallback(() => {
     const allFields = Object.values(stepFieldMap).flat();
@@ -754,7 +751,10 @@ const CustomerPortal = () => {
 
   useEffect(() => {
     if (saveNotification.show) {
-      const id = setTimeout(() => setSaveNotification({ show: false, type: null }), 5000);
+      const id = setTimeout(
+        () => setSaveNotification({ show: false, type: null }),
+        5000
+      );
       return () => clearTimeout(id);
     }
     return undefined;
@@ -857,16 +857,26 @@ const CustomerPortal = () => {
   };
 
   const handleSubmit = async () => {
-    if (!authToken) {
-      setSubmitError(missingTokenMessage);
-      openTokenPanel();
+    // Validate all fields before submission
+    if (!validateAll()) {
+      setSubmitError("Please fix the highlighted errors before submitting.");
+      const errorKeys = Object.keys(errors);
+      if (errorKeys.length > 0) {
+        const targetStep = Object.entries(stepFieldMap).find(
+          ([stepId, fields]) =>
+            fields.some((f) => errorKeys.includes(f) || f === "_anyDocument")
+        )?.[0];
+        if (typeof targetStep !== "undefined") {
+          setCurrentStep(Number(targetStep));
+        }
+      }
       return;
     }
 
-    // Check for missing documents first and show popup
+    // Check for missing documents
     const missingDocs = documentOptions.filter((d) => !files[d.id]);
     if (missingDocs.length > 0) {
-      setCurrentStep(2); // Navigate to documents step
+      setCurrentStep(2);
 
       if (missingDocs.length === 1) {
         showPopupMessage(`${missingDocs[0].label} was not uploaded`, "warning");
@@ -893,148 +903,119 @@ const CustomerPortal = () => {
       return;
     }
 
-    if (!validateAll()) {
-      // Provide clear feedback to the user and jump to the step containing the first error
-      setSubmitError("Please fix the highlighted errors before submitting.");
-      // Try to navigate to the first step that contains an error field
-      const errorKeys = Object.keys(errors);
-      if (errorKeys.length > 0) {
-        // find a step that includes any of the error keys
-        const targetStep = Object.entries(stepFieldMap).find(
-          ([stepId, fields]) =>
-            fields.some((f) => errorKeys.includes(f) || f === "_anyDocument")
-        )?.[0];
-        if (typeof targetStep !== "undefined") {
-          setCurrentStep(Number(targetStep));
-        }
-      }
-      return;
-    }
     setLoading(true);
     setSubmitError("");
     setMockNotice("");
+
+    // Build FormData with snake_case field names for Django backend
     const payload = new FormData();
+
+    // Customer information
     if (formData.customerEmail) {
-      payload.append("customerEmail", formData.customerEmail.trim());
+      payload.append("customer_email", formData.customerEmail.trim());
     }
     if (formData.customerPhone) {
-      payload.append("customerPhone", formData.customerPhone);
+      payload.append("customer_phone", formData.customerPhone);
     }
-    payload.append("vehicleNumber", formData.vehicleNumber.trim());
+
+    // Vehicle and PO information
+    payload.append("vehicle_number", formData.vehicleNumber.trim());
     if (formData.poNumber) {
-      payload.append("poNumber", formData.poNumber.trim());
+      payload.append("po_number", formData.poNumber.trim());
     }
-    payload.append("driverPhone", formData.driverPhone);
-    if (formData.helperPhone) {
-      payload.append("helperPhone", formData.helperPhone);
-    }
+
+    // Driver information
+    payload.append("driver_phone", formData.driverPhone);
     if (formData.driverName) {
-      payload.append("driverName", formData.driverName.trim());
+      payload.append("driver_name", formData.driverName.trim());
+    }
+    payload.append("driver_language", formData.driverLanguage);
+
+    // Helper information
+    if (formData.helperPhone) {
+      payload.append("helper_phone", formData.helperPhone);
     }
     if (formData.helperName) {
-      payload.append("helperName", formData.helperName.trim());
+      payload.append("helper_name", formData.helperName.trim());
     }
     if (formData.helperLanguage) {
-      payload.append("helperLanguage", formData.helperLanguage);
+      payload.append("helper_language", formData.helperLanguage);
     }
-    payload.append("driverLanguage", formData.driverLanguage);
-    // Append any uploaded files dynamically. Support multiple files per type.
-    const apiMap = {
-      purchaseOrder: "purchase_order",
-      vehiclePapers: "vehicle_papers",
-      aadhaarCard: "aadhaar_card",
-    };
+
+    // Append document files
     Object.entries(files).forEach(([key, arrOrFile]) => {
       if (!arrOrFile) return;
-      const apiKey = apiMap[key] || key;
+
       if (Array.isArray(arrOrFile)) {
-        arrOrFile.forEach((file) => payload.append(apiKey, file));
+        arrOrFile.forEach((file) => payload.append(key, file));
       } else {
-        // handle legacy single-file values
-        payload.append(apiKey, arrOrFile);
+        payload.append(key, arrOrFile);
       }
     });
 
     try {
-      const response = await fetch("/api/submissions/create", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: payload,
-      });
+      // Use the submissionsAPI service instead of fetch
+      const response = await submissionsAPI.createSubmission(payload);
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          const fallbackQr =
-            "data:image/png;base64,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";
-          setSuccessData({
-            qrCodeImage: makeDemoQr(
-              formData.vehicleNumber.trim(),
-              formData.driverPhone
-            ),
-            vehicleNumber: formData.vehicleNumber.trim(),
-            driverPhone: formData.driverPhone,
-          });
-          setShowNotify(true);
-          setMockNotice(
-            "Submission API is unavailable. A demo QR code was generated for testing purposes."
-          );
-          setSubmitError("");
-          return;
-        }
-        let message = "Unable to submit entry. Please try again.";
-        try {
-          const errorData = await response.json();
-          if (errorData?.error) {
-            message = errorData.error;
-          }
-          if (errorData?.message) {
-            message = errorData.message;
-          }
-        } catch (parseError) {
-          // ignore parsing errors and use default message
-        }
-        if (response.status === 401) {
-          openTokenPanel();
-        }
-        throw new Error(message);
-      }
+      // Extract submission data from response
+      const submission = response.data?.submission || response.data;
 
-      const data = await response.json();
-      const submission = data?.submission;
-      if (!submission?.qrCodeImage) {
+      if (!submission?.qrCodeImage && !submission?.qr_code_image) {
         throw new Error(
           "Submission succeeded but QR code is unavailable. Contact support."
         );
       }
+
+      // Set success data (handle both camelCase and snake_case from backend)
       setSuccessData({
-        qrCodeImage: submission.qrCodeImage,
+        qrCodeImage: submission.qrCodeImage || submission.qr_code_image,
         vehicleNumber:
-          submission.vehicleNumber || formData.vehicleNumber.trim(),
-        driverPhone: formData.driverPhone,
+          submission.vehicleNumber ||
+          submission.vehicle_number ||
+          formData.vehicleNumber.trim(),
+        driverPhone:
+          submission.driverPhone ||
+          submission.driver_phone ||
+          formData.driverPhone,
       });
+
       setShowNotify(true);
       setMockNotice("");
+      setSubmitError("");
     } catch (error) {
-      if (!successData) {
-        const demoUrl = makeDemoQr(
-          formData.vehicleNumber.trim(),
-          formData.driverPhone
-        );
-        setSuccessData({
-          qrCodeImage: demoUrl,
-          vehicleNumber: formData.vehicleNumber.trim(),
-          driverPhone: formData.driverPhone,
-        });
-        setShowNotify(true);
-        setMockNotice(
-          "Submission API is unavailable. A demo QR code was generated for testing purposes."
-        );
-        setSubmitError("");
-      } else {
-        setSubmitError(error.message);
+      console.error("Submission error:", error);
+
+      // Handle different error types
+      let errorMessage = "Unable to submit entry. Please try again.";
+
+      if (error.response) {
+        // Backend returned an error response
+        const status = error.response.status;
+        const data = error.response.data;
+
+        if (status === 400) {
+          // Validation errors
+          errorMessage =
+            data?.error ||
+            data?.message ||
+            "Invalid data provided. Please check your inputs.";
+        } else if (status === 401) {
+          errorMessage = "Authentication failed. Please sign in again.";
+          // The interceptor will handle token refresh automatically
+        } else if (status === 403) {
+          errorMessage = "You don't have permission to perform this action.";
+        } else if (status === 500) {
+          errorMessage = "Server error. Please try again later.";
+        } else if (data?.error || data?.message) {
+          errorMessage = data.error || data.message;
+        }
+      } else if (error.request) {
+        // Request was made but no response received
+        errorMessage =
+          "Network error. Please check your connection and try again.";
       }
+
+      setSubmitError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -1280,8 +1261,8 @@ const CustomerPortal = () => {
             </div>
             <p className="mt-4 text-sm text-gray-600">
               Do you really want to save the provided{" "}
-              {confirmModal.type === "driver" ? "driver" : "helper"} details
-              for this vehicle?
+              {confirmModal.type === "driver" ? "driver" : "helper"} details for
+              this vehicle?
             </p>
             <div className="mt-6 flex gap-3">
               <button
@@ -1351,17 +1332,6 @@ const CustomerPortal = () => {
               <div className="flex gap-2 flex-col sm:flex-row">
                 <button
                   type="button"
-                  onClick={toggleTokenPanel}
-                  className="inline-flex items-center justify-center rounded-xl border border-blue-500 px-4 py-2 text-sm font-semibold text-blue-600 transition-all duration-200 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                >
-                  {showTokenManager
-                    ? "Hide Access Token"
-                    : authToken
-                    ? "Manage Access Token"
-                    : "Set Access Token"}
-                </button>
-                <button
-                  type="button"
                   onClick={handleLogout}
                   disabled={logoutLoading}
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-500 px-4 py-2 text-sm font-semibold text-red-600 transition-all duration-200 hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
@@ -1375,60 +1345,6 @@ const CustomerPortal = () => {
                 </button>
               </div>
             </header>
-
-            {!authToken && (
-              <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                <AlertCircle className="mt-0.5 h-5 w-5" aria-hidden="true" />
-                <div>
-                  <p className="font-semibold">Authorization required</p>
-                  <p>
-                    Set your customer access token to submit entries
-                    successfully.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {showTokenManager && (
-              <section className="rounded-2xl border border-blue-200 bg-blue-50 p-6">
-                <h2 className="text-lg font-semibold text-blue-900">
-                  Customer Access Token
-                </h2>
-                <p className="mt-2 text-sm text-blue-700">
-                  Paste the access token shared with your organization
-                  administrator. This token will be used to authorize gate entry
-                  submissions.
-                </p>
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-                  <input
-                    type="text"
-                    value={tokenDraft}
-                    onChange={(event) => setTokenDraft(event.target.value)}
-                    placeholder="Enter access token"
-                    className="w-full rounded-xl border border-blue-300 bg-white px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                  />
-                  <div className="flex w-full gap-2 sm:w-auto">
-                    <button
-                      type="button"
-                      onClick={handleTokenSave}
-                      disabled={!tokenDraft.trim()}
-                      className="inline-flex w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-blue-300"
-                    >
-                      Save Token
-                    </button>
-                    {authToken && (
-                      <button
-                        type="button"
-                        onClick={handleTokenClear}
-                        className="inline-flex w-full items-center justify-center rounded-xl border border-blue-500 px-4 py-3 text-sm font-semibold text-blue-600 transition-all duration-200 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </section>
-            )}
 
             <nav className="grid gap-3 sm:grid-cols-3">
               {steps.map((step) => {
@@ -1485,17 +1401,12 @@ const CustomerPortal = () => {
                           name="customerEmail"
                           type="email"
                           value={formData.customerEmail}
-                          onChange={(event) =>
-                            handleInputChange(
-                              "customerEmail",
-                              event.target.value
-                            )
-                          }
+                          readOnly
                           placeholder="you@example.com"
-                          className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-semibold text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                          className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-semibold text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-not-allowed bg-gray-100 ${
                             errors.customerEmail
                               ? "border-red-400 bg-red-50 placeholder:text-red-400"
-                              : "border-gray-300 bg-white"
+                              : "border-gray-300"
                           }`}
                           autoComplete="email"
                         />
@@ -1522,17 +1433,12 @@ const CustomerPortal = () => {
                           type="tel"
                           inputMode="numeric"
                           value={formData.customerPhone}
-                          onChange={(event) =>
-                            handleInputChange(
-                              "customerPhone",
-                              event.target.value
-                            )
-                          }
+                          readOnly
                           placeholder="+91XXXXXXXXXX"
-                          className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                          className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-not-allowed bg-gray-100 ${
                             errors.customerPhone
                               ? "border-red-400 bg-red-50 placeholder:text-red-400"
-                              : "border-gray-300 bg-white"
+                              : "border-gray-300"
                           }`}
                         />
                         {errors.customerPhone && (
@@ -1565,7 +1471,8 @@ const CustomerPortal = () => {
                             htmlFor="vehicleNumber"
                             className="text-sm font-medium text-gray-700"
                           >
-                            Vehicle Number<span className="text-red-500"> *</span>
+                            Vehicle Number
+                            <span className="text-red-500"> *</span>
                           </label>
                           <input
                             id="vehicleNumber"
@@ -1623,10 +1530,7 @@ const CustomerPortal = () => {
                             type="text"
                             value={formData.poNumber}
                             onChange={(event) =>
-                              handleInputChange(
-                                "poNumber",
-                                event.target.value
-                              )
+                              handleInputChange("poNumber", event.target.value)
                             }
                             placeholder="Enter PO number"
                             className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-semibold tracking-wide text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
@@ -1666,7 +1570,10 @@ const CustomerPortal = () => {
                   <div className="mt-6 grid gap-6 lg:grid-cols-2">
                     {/* Row 1: Names */}
                     <div>
-                      <label htmlFor="driverName" className="text-sm font-medium text-gray-700">
+                      <label
+                        htmlFor="driverName"
+                        className="text-sm font-medium text-gray-700"
+                      >
                         Driver name<span className="text-red-500"> *</span>
                       </label>
                       <input
@@ -1674,10 +1581,14 @@ const CustomerPortal = () => {
                         name="driverName"
                         type="text"
                         value={formData.driverName}
-                        onChange={(e) => handleInputChange("driverName", e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("driverName", e.target.value)
+                        }
                         placeholder="Driver name"
                         className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                          errors.driverName ? "border-red-400 bg-red-50" : "border-gray-300 bg-white"
+                          errors.driverName
+                            ? "border-red-400 bg-red-50"
+                            : "border-gray-300 bg-white"
                         }`}
                         autoComplete="name"
                       />
@@ -1689,7 +1600,10 @@ const CustomerPortal = () => {
                       )}
                     </div>
                     <div>
-                      <label htmlFor="helperName" className="text-sm font-medium text-gray-700">
+                      <label
+                        htmlFor="helperName"
+                        className="text-sm font-medium text-gray-700"
+                      >
                         Helper name<span className="text-red-500"> *</span>
                       </label>
                       <input
@@ -1697,10 +1611,14 @@ const CustomerPortal = () => {
                         name="helperName"
                         type="text"
                         value={formData.helperName}
-                        onChange={(e) => handleInputChange("helperName", e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("helperName", e.target.value)
+                        }
                         placeholder="Helper name"
                         className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                          errors.helperName ? "border-red-400 bg-red-50" : "border-gray-300 bg-white"
+                          errors.helperName
+                            ? "border-red-400 bg-red-50"
+                            : "border-gray-300 bg-white"
                         }`}
                         autoComplete="name"
                       />
@@ -1714,7 +1632,10 @@ const CustomerPortal = () => {
 
                     {/* Row 2: Phones */}
                     <div>
-                      <label htmlFor="driverPhone" className="text-sm font-medium text-gray-700">
+                      <label
+                        htmlFor="driverPhone"
+                        className="text-sm font-medium text-gray-700"
+                      >
                         Driver Phone no.<span className="text-red-500"> *</span>
                       </label>
                       <input
@@ -1723,10 +1644,14 @@ const CustomerPortal = () => {
                         type="tel"
                         inputMode="numeric"
                         value={formData.driverPhone}
-                        onChange={(e) => handleInputChange("driverPhone", e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("driverPhone", e.target.value)
+                        }
                         placeholder="+91XXXXXXXXXX"
                         className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                          errors.driverPhone ? "border-red-400 bg-red-50" : "border-gray-300 bg-white"
+                          errors.driverPhone
+                            ? "border-red-400 bg-red-50"
+                            : "border-gray-300 bg-white"
                         }`}
                       />
                       {errors.driverPhone && (
@@ -1737,7 +1662,10 @@ const CustomerPortal = () => {
                       )}
                     </div>
                     <div>
-                      <label htmlFor="helperPhone" className="text-sm font-medium text-gray-700">
+                      <label
+                        htmlFor="helperPhone"
+                        className="text-sm font-medium text-gray-700"
+                      >
                         Helper Phone no.<span className="text-red-500"> *</span>
                       </label>
                       <input
@@ -1746,10 +1674,14 @@ const CustomerPortal = () => {
                         type="tel"
                         inputMode="numeric"
                         value={formData.helperPhone}
-                        onChange={(e) => handleInputChange("helperPhone", e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("helperPhone", e.target.value)
+                        }
                         placeholder="+91XXXXXXXXXX"
                         className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                          errors.helperPhone ? "border-red-400 bg-red-50" : "border-gray-300 bg-white"
+                          errors.helperPhone
+                            ? "border-red-400 bg-red-50"
+                            : "border-gray-300 bg-white"
                         }`}
                       />
                       {errors.helperPhone && (
@@ -1762,11 +1694,17 @@ const CustomerPortal = () => {
 
                     {/* Row 3: Languages */}
                     <div>
-                      <label htmlFor="driverLanguage" className="text-sm font-medium text-gray-700">
+                      <label
+                        htmlFor="driverLanguage"
+                        className="text-sm font-medium text-gray-700"
+                      >
                         Driver Language<span className="text-red-500"> *</span>
                       </label>
                       <div className="relative mt-2">
-                        <Globe className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400" aria-hidden="true" />
+                        <Globe
+                          className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400"
+                          aria-hidden="true"
+                        />
                         <div className="relative max-w-md">
                           <button
                             ref={prefButtonRef}
@@ -1775,26 +1713,139 @@ const CustomerPortal = () => {
                             aria-expanded={prefDropdownOpen}
                             onClick={() => {
                               setPrefDropdownOpen((s) => !s);
-                              setPrefHighlight(languages.findIndex((l) => l.value === formData.driverLanguage));
+                              setPrefHighlight(
+                                languages.findIndex(
+                                  (l) => l.value === formData.driverLanguage
+                                )
+                              );
                             }}
-                            className={`w-full rounded-xl border ${errors.driverLanguage ? 'border-red-400 bg-red-50' : 'border-gray-300'} bg-white px-4 py-3 text-left text-sm font-medium text-gray-900 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                            className={`w-full rounded-xl border ${
+                              errors.driverLanguage
+                                ? "border-red-400 bg-red-50"
+                                : "border-gray-300"
+                            } bg-white px-4 py-3 text-left text-sm font-medium text-gray-900 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500`}
                           >
                             <div className="flex items-center gap-2">
                               <Globe className="h-4 w-4 text-gray-400" />
-                              <span>{languages.find((l) => l.value === formData.driverLanguage)?.label}</span>
-                              <svg className={`ml-auto h-4 w-4 text-gray-500 transform ${prefDropdownOpen ? 'rotate-180' : 'rotate-0'}`} viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-                                <path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                              <span>
+                                {
+                                  languages.find(
+                                    (l) => l.value === formData.driverLanguage
+                                  )?.label
+                                }
+                              </span>
+                              <svg
+                                className={`ml-auto h-4 w-4 text-gray-500 transform ${
+                                  prefDropdownOpen ? "rotate-180" : "rotate-0"
+                                }`}
+                                viewBox="0 0 20 20"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                                aria-hidden
+                              >
+                                <path
+                                  d="M6 8l4 4 4-4"
+                                  stroke="currentColor"
+                                  strokeWidth="1.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
                               </svg>
                             </div>
                           </button>
                           {prefDropdownOpen && (
                             <div className="absolute left-0 right-0 z-40 mt-2 rounded-xl bg-white border border-gray-200 shadow-lg">
-                              <ul role="listbox" tabIndex={-1} ref={prefListRef} className="max-h-60 overflow-auto py-2">
-                                {languages.map((opt, idx) => (
-                                  <li key={opt.value} role="option" aria-selected={formData.driverLanguage === opt.value} onClick={() => { handleInputChange('driverLanguage', opt.value); setPrefDropdownOpen(false); }} onMouseEnter={() => setPrefHighlight(idx)} className={`cursor-pointer px-4 py-2 text-sm ${formData.driverLanguage === opt.value ? 'bg-blue-50 text-blue-700 font-semibold' : prefHighlight === idx ? 'bg-gray-100' : 'text-gray-700'}`}>
-                                    {opt.label}
-                                  </li>
-                                ))}
+                              <div className="p-2">
+                                <input
+                                  ref={prefListRef}
+                                  type="text"
+                                  value={prefSearch}
+                                  onChange={(e) => {
+                                    setPrefSearch(e.target.value);
+                                    setPrefHighlight(0);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "ArrowDown") {
+                                      e.preventDefault();
+                                      const filtered = languages.filter((l) =>
+                                        l.label
+                                          .toLowerCase()
+                                          .includes(prefSearch.toLowerCase())
+                                      );
+                                      setPrefHighlight((prev) =>
+                                        Math.min(prev + 1, filtered.length - 1)
+                                      );
+                                    } else if (e.key === "ArrowUp") {
+                                      e.preventDefault();
+                                      setPrefHighlight((prev) =>
+                                        Math.max(prev - 1, 0)
+                                      );
+                                    } else if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      const filtered = languages.filter((l) =>
+                                        l.label
+                                          .toLowerCase()
+                                          .includes(prefSearch.toLowerCase())
+                                      );
+                                      if (filtered[prefHighlight]) {
+                                        handleInputChange(
+                                          "driverLanguage",
+                                          filtered[prefHighlight].value
+                                        );
+                                        setPrefDropdownOpen(false);
+                                        setPrefSearch("");
+                                      }
+                                    }
+                                  }}
+                                  placeholder="Search languages..."
+                                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                              </div>
+                              <ul
+                                role="listbox"
+                                aria-activedescendant={
+                                  languages.filter((l) =>
+                                    l.label
+                                      .toLowerCase()
+                                      .includes(prefSearch.toLowerCase())
+                                  )[prefHighlight]?.value
+                                }
+                                tabIndex={-1}
+                                className="max-h-60 overflow-auto py-2"
+                              >
+                                {languages
+                                  .filter((l) =>
+                                    l.label
+                                      .toLowerCase()
+                                      .includes(prefSearch.toLowerCase())
+                                  )
+                                  .map((opt, idx) => (
+                                    <li
+                                      key={opt.value}
+                                      role="option"
+                                      aria-selected={
+                                        formData.driverLanguage === opt.value
+                                      }
+                                      onClick={() => {
+                                        handleInputChange(
+                                          "driverLanguage",
+                                          opt.value
+                                        );
+                                        setPrefDropdownOpen(false);
+                                        setPrefSearch("");
+                                      }}
+                                      onMouseEnter={() => setPrefHighlight(idx)}
+                                      className={`cursor-pointer px-4 py-2 text-sm ${
+                                        formData.driverLanguage === opt.value
+                                          ? "bg-blue-50 text-blue-700 font-semibold"
+                                          : prefHighlight === idx
+                                          ? "bg-gray-100"
+                                          : "text-gray-700"
+                                      }`}
+                                    >
+                                      {opt.label}
+                                    </li>
+                                  ))}
                               </ul>
                             </div>
                           )}
@@ -1809,11 +1860,17 @@ const CustomerPortal = () => {
                     </div>
 
                     <div>
-                      <label htmlFor="helperLanguage" className="text-sm font-medium text-gray-700">
+                      <label
+                        htmlFor="helperLanguage"
+                        className="text-sm font-medium text-gray-700"
+                      >
                         Helper Language<span className="text-red-500"> *</span>
                       </label>
                       <div className="relative mt-2">
-                        <Globe className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400" aria-hidden="true" />
+                        <Globe
+                          className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400"
+                          aria-hidden="true"
+                        />
                         <div className="relative max-w-md">
                           <button
                             ref={helperPrefButtonRef}
@@ -1822,26 +1879,143 @@ const CustomerPortal = () => {
                             aria-expanded={helperPrefDropdownOpen}
                             onClick={() => {
                               setHelperPrefDropdownOpen((s) => !s);
-                              setHelperPrefHighlight(languages.findIndex((l) => l.value === formData.helperLanguage));
+                              setHelperPrefHighlight(
+                                languages.findIndex(
+                                  (l) => l.value === formData.helperLanguage
+                                )
+                              );
                             }}
-                            className={`w-full rounded-xl border ${errors.helperLanguage ? 'border-red-400 bg-red-50' : 'border-gray-300'} bg-white px-4 py-3 text-left text-sm font-medium text-gray-900 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                            className={`w-full rounded-xl border ${
+                              errors.helperLanguage
+                                ? "border-red-400 bg-red-50"
+                                : "border-gray-300"
+                            } bg-white px-4 py-3 text-left text-sm font-medium text-gray-900 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500`}
                           >
                             <div className="flex items-center gap-2">
                               <Globe className="h-4 w-4 text-gray-400" />
-                              <span>{languages.find((l) => l.value === formData.helperLanguage)?.label}</span>
-                              <svg className={`ml-auto h-4 w-4 text-gray-500 transform ${helperPrefDropdownOpen ? 'rotate-180' : 'rotate-0'}`} viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-                                <path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                              <span>
+                                {
+                                  languages.find(
+                                    (l) => l.value === formData.helperLanguage
+                                  )?.label
+                                }
+                              </span>
+                              <svg
+                                className={`ml-auto h-4 w-4 text-gray-500 transform ${
+                                  helperPrefDropdownOpen
+                                    ? "rotate-180"
+                                    : "rotate-0"
+                                }`}
+                                viewBox="0 0 20 20"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                                aria-hidden
+                              >
+                                <path
+                                  d="M6 8l4 4 4-4"
+                                  stroke="currentColor"
+                                  strokeWidth="1.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
                               </svg>
                             </div>
                           </button>
                           {helperPrefDropdownOpen && (
                             <div className="absolute left-0 right-0 z-40 mt-2 rounded-xl bg-white border border-gray-200 shadow-lg">
-                              <ul role="listbox" tabIndex={-1} ref={helperPrefListRef} className="max-h-60 overflow-auto py-2">
-                                {languages.map((opt, idx) => (
-                                  <li key={opt.value} role="option" aria-selected={formData.helperLanguage === opt.value} onClick={() => { handleInputChange('helperLanguage', opt.value); setHelperPrefDropdownOpen(false); }} onMouseEnter={() => setHelperPrefHighlight(idx)} className={`cursor-pointer px-4 py-2 text-sm ${formData.helperLanguage === opt.value ? 'bg-blue-50 text-blue-700 font-semibold' : helperPrefHighlight === idx ? 'bg-gray-100' : 'text-gray-700'}`}>
-                                    {opt.label}
-                                  </li>
-                                ))}
+                              <div className="p-2">
+                                <input
+                                  ref={helperPrefListRef}
+                                  type="text"
+                                  value={helperPrefSearch}
+                                  onChange={(e) => {
+                                    setHelperPrefSearch(e.target.value);
+                                    setHelperPrefHighlight(0);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "ArrowDown") {
+                                      e.preventDefault();
+                                      const filtered = languages.filter((l) =>
+                                        l.label
+                                          .toLowerCase()
+                                          .includes(helperPrefSearch.toLowerCase())
+                                      );
+                                      setHelperPrefHighlight((prev) =>
+                                        Math.min(prev + 1, filtered.length - 1)
+                                      );
+                                    } else if (e.key === "ArrowUp") {
+                                      e.preventDefault();
+                                      setHelperPrefHighlight((prev) =>
+                                        Math.max(prev - 1, 0)
+                                      );
+                                    } else if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      const filtered = languages.filter((l) =>
+                                        l.label
+                                          .toLowerCase()
+                                          .includes(helperPrefSearch.toLowerCase())
+                                      );
+                                      if (filtered[helperPrefHighlight]) {
+                                        handleInputChange(
+                                          "helperLanguage",
+                                          filtered[helperPrefHighlight].value
+                                        );
+                                        setHelperPrefDropdownOpen(false);
+                                        setHelperPrefSearch("");
+                                      }
+                                    }
+                                  }}
+                                  placeholder="Search languages..."
+                                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                              </div>
+                              <ul
+                                role="listbox"
+                                aria-activedescendant={
+                                  languages.filter((l) =>
+                                    l.label
+                                      .toLowerCase()
+                                      .includes(helperPrefSearch.toLowerCase())
+                                  )[helperPrefHighlight]?.value
+                                }
+                                tabIndex={-1}
+                                className="max-h-60 overflow-auto py-2"
+                              >
+                                {languages
+                                  .filter((l) =>
+                                    l.label
+                                      .toLowerCase()
+                                      .includes(helperPrefSearch.toLowerCase())
+                                  )
+                                  .map((opt, idx) => (
+                                    <li
+                                      key={opt.value}
+                                      role="option"
+                                      aria-selected={
+                                        formData.helperLanguage === opt.value
+                                      }
+                                      onClick={() => {
+                                        handleInputChange(
+                                          "helperLanguage",
+                                          opt.value
+                                        );
+                                        setHelperPrefDropdownOpen(false);
+                                        setHelperPrefSearch("");
+                                      }}
+                                      onMouseEnter={() =>
+                                        setHelperPrefHighlight(idx)
+                                      }
+                                      className={`cursor-pointer px-4 py-2 text-sm ${
+                                        formData.helperLanguage === opt.value
+                                          ? "bg-blue-50 text-blue-700 font-semibold"
+                                          : helperPrefHighlight === idx
+                                          ? "bg-gray-100"
+                                          : "text-gray-700"
+                                      }`}
+                                    >
+                                      {opt.label}
+                                    </li>
+                                  ))}
                               </ul>
                             </div>
                           )}
@@ -2084,21 +2258,23 @@ const CustomerPortal = () => {
                                           selectedDocType === opt.id
                                         }
                                         aria-disabled={disabled}
-                                                  onClick={() => {
-                                                    setSelectedDocType(opt.id);
-                                                    setDocDropdownOpen(false);
-                                                  }}
-                                                  onMouseEnter={() => setDocHighlight(idx)}
-                                                  className={`px-4 py-2 text-sm cursor-pointer ${
-                                                    selectedDocType === opt.id
-                                                      ? "bg-blue-50 text-blue-700 font-semibold"
-                                                      : docHighlight === idx
-                                                      ? "bg-gray-100"
-                                                      : "text-gray-700"
-                                                  }`}
-                                                >
-                                                  {opt.label}
-                                                </li>
+                                        onClick={() => {
+                                          setSelectedDocType(opt.id);
+                                          setDocDropdownOpen(false);
+                                        }}
+                                        onMouseEnter={() =>
+                                          setDocHighlight(idx)
+                                        }
+                                        className={`px-4 py-2 text-sm cursor-pointer ${
+                                          selectedDocType === opt.id
+                                            ? "bg-blue-50 text-blue-700 font-semibold"
+                                            : docHighlight === idx
+                                            ? "bg-gray-100"
+                                            : "text-gray-700"
+                                        }`}
+                                      >
+                                        {opt.label}
+                                      </li>
                                     );
                                   })}
                               </ul>
@@ -2192,7 +2368,8 @@ const CustomerPortal = () => {
                         )}
                         {documentOptions.map((opt) => {
                           const arr = files[opt.id] || [];
-                          if (!Array.isArray(arr) || arr.length === 0) return null;
+                          if (!Array.isArray(arr) || arr.length === 0)
+                            return null;
                           return arr.map((file, idx) => (
                             <div
                               key={`${opt.id}-${idx}`}
@@ -2204,13 +2381,17 @@ const CustomerPortal = () => {
                                   <p className="text-sm font-medium text-gray-800">
                                     {opt.label}
                                   </p>
-                                  <p className="text-xs text-gray-500">{file.name}</p>
+                                  <p className="text-xs text-gray-500">
+                                    {file.name}
+                                  </p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => handleClearUploaded(opt.id, idx)}
+                                  onClick={() =>
+                                    handleClearUploaded(opt.id, idx)
+                                  }
                                   className="inline-flex items-center gap-2 rounded-md border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
                                 >
                                   Clear

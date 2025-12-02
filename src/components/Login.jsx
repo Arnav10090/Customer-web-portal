@@ -54,8 +54,7 @@ const Login = ({ onSwitchToRegister }) => {
 
     setLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      const result = login(formData.email.trim(), formData.password);
+      const result = await login(formData.email.trim(), formData.password);
 
       if (!result.success) {
         setSubmitError(result.error || "Login failed. Please try again.");

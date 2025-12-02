@@ -6,6 +6,8 @@ const Register = ({ onSwitchToLogin }) => {
   const [formData, setFormData] = useState({
     email: "",
     username: "",
+    firstname: "",
+    lastname: "",
     password: "",
     verify_password: "",
     phone: "",
@@ -42,6 +44,14 @@ const Register = ({ onSwitchToLogin }) => {
       newErrors.username = "Username is required";
     } else if (formData.username.trim().length < 3) {
       newErrors.username = "Username must be at least 3 characters";
+    }
+
+    if (!formData.firstname.trim()) {
+      newErrors.firstname = "First name is required";
+    }
+
+    if (!formData.lastname.trim()) {
+      newErrors.lastname = "Last name is required";
     }
 
     if (!formData.password) {
@@ -97,11 +107,13 @@ const Register = ({ onSwitchToLogin }) => {
 
     setLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      const result = register({
+      const result = await register({
         email: formData.email.trim(),
         username: formData.username.trim(),
+        firstname: formData.firstname.trim(),
+        lastname: formData.lastname.trim(),
         password: formData.password,
+        verify_password: formData.verify_password,
         phone: formData.phone,
         company_name: formData.company_name.trim(),
       });
@@ -205,6 +217,64 @@ const Register = ({ onSwitchToLogin }) => {
                   {errors.username}
                 </p>
               )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="firstname" className="block text-sm font-medium text-gray-700 mb-2">
+                  First Name <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-3.5 h-5 w-5 text-gray-400 pointer-events-none" />
+                  <input
+                    id="firstname"
+                    type="text"
+                    value={formData.firstname}
+                    onChange={(e) => handleInputChange("firstname", e.target.value)}
+                    placeholder="John"
+                    className={`w-full pl-10 pr-4 py-3 rounded-xl border text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                      errors.firstname
+                        ? "border-red-400 bg-red-50 placeholder:text-red-400 focus:ring-red-500"
+                        : "border-gray-300 bg-white placeholder:text-gray-400 focus:ring-blue-500"
+                    }`}
+                    disabled={loading}
+                  />
+                </div>
+                {errors.firstname && (
+                  <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" />
+                    {errors.firstname}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="lastname" className="block text-sm font-medium text-gray-700 mb-2">
+                  Last Name <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-3.5 h-5 w-5 text-gray-400 pointer-events-none" />
+                  <input
+                    id="lastname"
+                    type="text"
+                    value={formData.lastname}
+                    onChange={(e) => handleInputChange("lastname", e.target.value)}
+                    placeholder="Doe"
+                    className={`w-full pl-10 pr-4 py-3 rounded-xl border text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                      errors.lastname
+                        ? "border-red-400 bg-red-50 placeholder:text-red-400 focus:ring-red-500"
+                        : "border-gray-300 bg-white placeholder:text-gray-400 focus:ring-blue-500"
+                    }`}
+                    disabled={loading}
+                  />
+                </div>
+                {errors.lastname && (
+                  <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" />
+                    {errors.lastname}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div>

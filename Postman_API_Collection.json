@@ -184,7 +184,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"vehicle_registration_no\": \"MH12AB1234\",\n  \"vehicle_type\": \"truck\",\n  \"manufacturer\": \"Tata\",\n  \"model\": \"Sumo\",\n  \"year\": 2020,\n  \"color\": \"white\",\n  \"vin_number\": \"VIN123456789ABC\"\n}"
+              "raw": "{\n  \"vehicle_registration_no\": \"MH12AB1234\",\n  \"remark\": \"Vehicle in good condition\",\n  \"ratings\": 5\n}"
             },
             "url": {
               "raw": "http://localhost:8000/api/vehicles/",
@@ -273,7 +273,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"vehicle_registration_no\": \"MH12AB1234\",\n  \"vehicle_type\": \"truck\",\n  \"manufacturer\": \"Tata\",\n  \"model\": \"Sumo\",\n  \"year\": 2021,\n  \"color\": \"blue\",\n  \"vin_number\": \"VIN123456789ABC\"\n}"
+              "raw": "{\n  \"vehicle_registration_no\": \"MH12AB1234\",\n  \"remark\": \"Updated vehicle remark\",\n  \"ratings\": 4\n}"
             },
             "url": {
               "raw": "http://localhost:8000/api/vehicles/MH12AB1234/",
@@ -592,7 +592,7 @@
                 },
                 {
                   "key": "document_type",
-                  "value": "purchase_order",
+                  "value": "vehicle_registration",
                   "type": "text"
                 },
                 {
@@ -872,12 +872,6 @@
                   "type": "text"
                 },
                 {
-                  "key": "purchase_order",
-                  "type": "file",
-                  "src": "path/to/file.pdf",
-                  "disabled": true
-                },
-                {
                   "key": "vehicle_registration",
                   "type": "file",
                   "src": "path/to/file.pdf",
@@ -890,31 +884,43 @@
                   "disabled": true
                 },
                 {
-                  "key": "puc",
+                  "key": "vehicle_puc",
                   "type": "file",
                   "src": "path/to/file.pdf",
                   "disabled": true
                 },
                 {
-                  "key": "driver_license",
+                  "key": "driver_aadhar",
                   "type": "file",
                   "src": "path/to/file.pdf",
                   "disabled": true
                 },
                 {
-                  "key": "transportation_approval",
+                  "key": "helper_aadhar",
                   "type": "file",
                   "src": "path/to/file.pdf",
                   "disabled": true
                 },
                 {
-                  "key": "payment_approval",
+                  "key": "po",
                   "type": "file",
                   "src": "path/to/file.pdf",
                   "disabled": true
                 },
                 {
-                  "key": "vendor_approval",
+                  "key": "do",
+                  "type": "file",
+                  "src": "path/to/file.pdf",
+                  "disabled": true
+                },
+                {
+                  "key": "before_weighing",
+                  "type": "file",
+                  "src": "path/to/file.pdf",
+                  "disabled": true
+                },
+                {
+                  "key": "after_weighing",
                   "type": "file",
                   "src": "path/to/file.pdf",
                   "disabled": true
