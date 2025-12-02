@@ -361,6 +361,8 @@ const CustomerPortal = () => {
   const [popupVariant, setPopupVariant] = useState("info");
   const [confirmModal, setConfirmModal] = useState({ show: false, type: null });
   const [saveNotification, setSaveNotification] = useState({ show: false, type: null });
+  const [driverInfoSaved, setDriverInfoSaved] = useState(false);
+  const [helperInfoSaved, setHelperInfoSaved] = useState(false);
   const missingTokenMessage =
     "Authentication token is missing. Please sign in again.";
 
@@ -655,13 +657,24 @@ const CustomerPortal = () => {
   );
 
   const handleNextStep = () => {
-    // allow moving between steps freely; final validation occurs on submit
+    // Require saving both driver and helper info before moving from step 1
+    if (currentStep === 1) {
+      if (!driverInfoSaved || !helperInfoSaved) {
+        showPopupMessage(
+          "Please save both driver and helper information before continuing.",
+          "warning"
+        );
+        return;
+      }
+    }
     setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
   };
 
   const handlePreviousStep = () => {
     setCurrentStep((prev) => Math.max(prev - 1, 0));
-  };
+  }
+
+  const isStep1Complete = driverInfoSaved && helperInfoSaved;
 
   const validateAll = useCallback(() => {
     const allFields = Object.values(stepFieldMap).flat();
@@ -677,6 +690,8 @@ const CustomerPortal = () => {
     setSuccessData(null);
     setMockNotice("");
     setShowNotify(false);
+    setDriverInfoSaved(false);
+    setHelperInfoSaved(false);
   };
 
   // Auto-dismiss notification when shown
@@ -723,6 +738,11 @@ const CustomerPortal = () => {
     const type = confirmModal.type;
     setConfirmModal({ show: false, type: null });
     setSaveNotification({ show: true, type });
+    if (type === "driver") {
+      setDriverInfoSaved(true);
+    } else if (type === "helper") {
+      setHelperInfoSaved(true);
+    }
   };
 
   const handleConfirmNo = () => {
