@@ -363,6 +363,8 @@ const CustomerPortal = () => {
   const [saveNotification, setSaveNotification] = useState({ show: false, type: null });
   const [driverInfoSaved, setDriverInfoSaved] = useState(false);
   const [helperInfoSaved, setHelperInfoSaved] = useState(false);
+  const [driverModified, setDriverModified] = useState(false);
+  const [helperModified, setHelperModified] = useState(false);
   const missingTokenMessage =
     "Authentication token is missing. Please sign in again.";
 
@@ -463,17 +465,16 @@ const CustomerPortal = () => {
     }));
     clearFieldError(field);
 
-    // Reset saved state when Step 2 fields are modified
-    const step2Fields = [
-      "driverName",
-      "helperName",
-      "driverPhone",
-      "helperPhone",
-      "driverLanguage",
-      "helperLanguage",
-    ];
-    if (step2Fields.includes(field)) {
+    // Track which sections are modified
+    const driverFields = ["driverName", "driverPhone", "driverLanguage"];
+    const helperFields = ["helperName", "helperPhone", "helperLanguage"];
+
+    if (driverFields.includes(field)) {
+      setDriverModified(true);
       setDriverInfoSaved(false);
+    }
+    if (helperFields.includes(field)) {
+      setHelperModified(true);
       setHelperInfoSaved(false);
     }
   };
@@ -671,11 +672,26 @@ const CustomerPortal = () => {
   );
 
   const handleNextStep = () => {
-    // Require saving both driver and helper info before moving from step 1
+    // Require saving only the sections that were modified
     if (currentStep === 1) {
-      if (!driverInfoSaved || !helperInfoSaved) {
+      const missingDriverSave = driverModified && !driverInfoSaved;
+      const missingHelperSave = helperModified && !helperInfoSaved;
+
+      if (missingDriverSave && missingHelperSave) {
         showPopupMessage(
           "Please save both driver and helper information before continuing.",
+          "warning"
+        );
+        return;
+      } else if (missingDriverSave) {
+        showPopupMessage(
+          "Please save driver information before continuing.",
+          "warning"
+        );
+        return;
+      } else if (missingHelperSave) {
+        showPopupMessage(
+          "Please save helper information before continuing.",
           "warning"
         );
         return;
@@ -688,7 +704,9 @@ const CustomerPortal = () => {
     setCurrentStep((prev) => Math.max(prev - 1, 0));
   }
 
-  const isStep1Complete = driverInfoSaved && helperInfoSaved;
+  const isStep1Complete = (
+    (!driverModified || driverInfoSaved) && (!helperModified || helperInfoSaved)
+  );
 
   const validateAll = useCallback(() => {
     const allFields = Object.values(stepFieldMap).flat();
@@ -706,6 +724,8 @@ const CustomerPortal = () => {
     setShowNotify(false);
     setDriverInfoSaved(false);
     setHelperInfoSaved(false);
+    setDriverModified(false);
+    setHelperModified(false);
   };
 
   // Auto-dismiss notification when shown
@@ -754,8 +774,10 @@ const CustomerPortal = () => {
     setSaveNotification({ show: true, type });
     if (type === "driver") {
       setDriverInfoSaved(true);
+      setDriverModified(false);
     } else if (type === "helper") {
       setHelperInfoSaved(true);
+      setHelperModified(false);
     }
   };
 
