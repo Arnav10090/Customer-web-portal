@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import CustomerPortal from "./components/CustomerPortal";
 import Login from "./components/Login";
@@ -7,6 +7,13 @@ import Register from "./components/Register";
 function AppContent() {
   const { isLoggedIn, loading } = useAuth();
   const [authPage, setAuthPage] = useState("login");
+
+  // Reset to login page whenever user logs out
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setAuthPage("login");
+    }
+  }, [isLoggedIn]);
 
   if (loading) {
     return (
