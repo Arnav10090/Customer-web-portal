@@ -1362,11 +1362,16 @@ const CustomerPortal = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={logout}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-500 px-4 py-2 text-sm font-semibold text-red-600 transition-all duration-200 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+                  onClick={handleLogout}
+                  disabled={logoutLoading}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-500 px-4 py-2 text-sm font-semibold text-red-600 transition-all duration-200 hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
                 >
-                  <LogOut className="h-4 w-4" aria-hidden="true" />
-                  Sign Out
+                  {logoutLoading ? (
+                    <Loader className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <LogOut className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  {logoutLoading ? "Signing out..." : "Sign Out"}
                 </button>
               </div>
             </header>
