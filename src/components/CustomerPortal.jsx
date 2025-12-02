@@ -62,6 +62,7 @@ const steps = [
 
 const initialFormData = {
   vehicleNumber: "",
+  poNumber: "",
   customerEmail: "",
   customerPhone: "",
   driverPhone: "",
@@ -134,6 +135,16 @@ const validateEmail = (value) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(trimmed)) {
     return "Enter a valid email address.";
+  }
+  return "";
+};
+
+const validatePoNumber = (value) => {
+  if (!value.trim()) {
+    return "PO number is required.";
+  }
+  if (value.trim().length < 2 || value.trim().length > 50) {
+    return "PO number must be between 2 and 50 characters.";
   }
   return "";
 };
@@ -357,7 +368,7 @@ const CustomerPortal = () => {
 
   const stepFieldMap = useMemo(
     () => ({
-      0: ["customerEmail", "customerPhone", "vehicleNumber"],
+      0: ["customerEmail", "customerPhone", "vehicleNumber", "poNumber"],
   1: ["driverPhone", "helperPhone", "driverLanguage", "helperName", "driverName", "helperLanguage"],
       // step 2 requires at least one document upload; use a special token
       2: ["_anyDocument"],
@@ -435,6 +446,12 @@ const CustomerPortal = () => {
       field === "customerPhone"
     ) {
       nextValue = formatPhoneValue(value);
+    }
+    if (field === "poNumber") {
+      nextValue = value
+        .toUpperCase()
+        .replace(/[^A-Z0-9-\s]/g, "")
+        .slice(0, 50);
     }
     setFormData((previous) => ({
       ...previous,
@@ -557,6 +574,12 @@ const CustomerPortal = () => {
           const result = validateVehicleNumber(formData.vehicleNumber);
           if (result) {
             validationErrors.vehicleNumber = result;
+          }
+        }
+        if (field === "poNumber") {
+          const result = validatePoNumber(formData.poNumber);
+          if (result) {
+            validationErrors.poNumber = result;
           }
         }
         if (field === "driverPhone") {
@@ -799,6 +822,9 @@ const CustomerPortal = () => {
       payload.append("customerPhone", formData.customerPhone);
     }
     payload.append("vehicleNumber", formData.vehicleNumber.trim());
+    if (formData.poNumber) {
+      payload.append("poNumber", formData.poNumber.trim());
+    }
     payload.append("driverPhone", formData.driverPhone);
     if (formData.helperPhone) {
       payload.append("helperPhone", formData.helperPhone);
@@ -1344,55 +1370,107 @@ const CustomerPortal = () => {
                     </div>
                   </section>
 
-                  <section className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
-                    <div className="flex items-center gap-3">
-                      <Truck
-                        className="h-5 w-5 text-blue-600"
-                        aria-hidden="true"
-                      />
-                      <h2 className="text-lg font-semibold text-gray-800">
-                        Vehicle Information
-                      </h2>
-                    </div>
-                    <div className="mt-6 grid gap-6">
-                      <div>
-                        <label
-                          htmlFor="vehicleNumber"
-                          className="text-sm font-medium text-gray-700"
-                        >
-                          Vehicle Number<span className="text-red-500"> *</span>
-                        </label>
-                        <input
-                          id="vehicleNumber"
-                          name="vehicleNumber"
-                          type="text"
-                          value={formData.vehicleNumber}
-                          onChange={(event) =>
-                            handleInputChange(
-                              "vehicleNumber",
-                              event.target.value
-                            )
-                          }
-                          placeholder="Enter vehicle number"
-                          className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-semibold tracking-wide text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                            errors.vehicleNumber
-                              ? "border-red-400 bg-red-50 placeholder:text-red-400"
-                              : "border-gray-300 bg-white"
-                          }`}
-                          autoComplete="off"
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    <section className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
+                      <div className="flex items-center gap-3">
+                        <Truck
+                          className="h-5 w-5 text-blue-600"
+                          aria-hidden="true"
                         />
-                        {errors.vehicleNumber && (
-                          <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
-                            <AlertCircle
-                              className="h-4 w-4"
-                              aria-hidden="true"
-                            />
-                            <span>{errors.vehicleNumber}</span>
-                          </div>
-                        )}
+                        <h2 className="text-lg font-semibold text-gray-800">
+                          Vehicle Information
+                        </h2>
                       </div>
-                    </div>
-                  </section>
+                      <div className="mt-6 grid gap-6">
+                        <div>
+                          <label
+                            htmlFor="vehicleNumber"
+                            className="text-sm font-medium text-gray-700"
+                          >
+                            Vehicle Number<span className="text-red-500"> *</span>
+                          </label>
+                          <input
+                            id="vehicleNumber"
+                            name="vehicleNumber"
+                            type="text"
+                            value={formData.vehicleNumber}
+                            onChange={(event) =>
+                              handleInputChange(
+                                "vehicleNumber",
+                                event.target.value
+                              )
+                            }
+                            placeholder="Enter vehicle number"
+                            className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-semibold tracking-wide text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                              errors.vehicleNumber
+                                ? "border-red-400 bg-red-50 placeholder:text-red-400"
+                                : "border-gray-300 bg-white"
+                            }`}
+                            autoComplete="off"
+                          />
+                          {errors.vehicleNumber && (
+                            <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
+                              <AlertCircle
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                              <span>{errors.vehicleNumber}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
+                      <div className="flex items-center gap-3">
+                        <FileText
+                          className="h-5 w-5 text-blue-600"
+                          aria-hidden="true"
+                        />
+                        <h2 className="text-lg font-semibold text-gray-800">
+                          PO Details
+                        </h2>
+                      </div>
+                      <div className="mt-6 grid gap-6">
+                        <div>
+                          <label
+                            htmlFor="poNumber"
+                            className="text-sm font-medium text-gray-700"
+                          >
+                            PO Number<span className="text-red-500"> *</span>
+                          </label>
+                          <input
+                            id="poNumber"
+                            name="poNumber"
+                            type="text"
+                            value={formData.poNumber}
+                            onChange={(event) =>
+                              handleInputChange(
+                                "poNumber",
+                                event.target.value
+                              )
+                            }
+                            placeholder="Enter PO number"
+                            className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-semibold tracking-wide text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                              errors.poNumber
+                                ? "border-red-400 bg-red-50 placeholder:text-red-400"
+                                : "border-gray-300 bg-white"
+                            }`}
+                            autoComplete="off"
+                          />
+                          {errors.poNumber && (
+                            <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
+                              <AlertCircle
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                              <span>{errors.poNumber}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </section>
+                  </div>
                 </>
               )}
 
