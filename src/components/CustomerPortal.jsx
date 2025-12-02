@@ -446,6 +446,16 @@ const CustomerPortal = () => {
     setShowTokenManager((previous) => !previous);
   }, []);
 
+  const handleLogout = useCallback(async () => {
+    setLogoutLoading(true);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      logout();
+    } finally {
+      setLogoutLoading(false);
+    }
+  }, [logout]);
+
   const handleInputChange = (field, value) => {
     let nextValue = value;
     if (field === "vehicleNumber") {
