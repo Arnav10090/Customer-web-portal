@@ -62,6 +62,7 @@ const steps = [
 
 const initialFormData = {
   vehicleNumber: "",
+  poNumber: "",
   customerEmail: "",
   customerPhone: "",
   driverPhone: "",
@@ -134,6 +135,16 @@ const validateEmail = (value) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(trimmed)) {
     return "Enter a valid email address.";
+  }
+  return "";
+};
+
+const validatePoNumber = (value) => {
+  if (!value.trim()) {
+    return "PO number is required.";
+  }
+  if (value.trim().length < 2 || value.trim().length > 50) {
+    return "PO number must be between 2 and 50 characters.";
   }
   return "";
 };
@@ -348,6 +359,12 @@ const CustomerPortal = () => {
   const [showPopup, setShowPopup] = useState(false);
   const [popupMessage, setPopupMessage] = useState("");
   const [popupVariant, setPopupVariant] = useState("info");
+  const [confirmModal, setConfirmModal] = useState({ show: false, type: null });
+  const [saveNotification, setSaveNotification] = useState({ show: false, type: null });
+  const [driverInfoSaved, setDriverInfoSaved] = useState(false);
+  const [helperInfoSaved, setHelperInfoSaved] = useState(false);
+  const [driverModified, setDriverModified] = useState(false);
+  const [helperModified, setHelperModified] = useState(false);
   const missingTokenMessage =
     "Authentication token is missing. Please sign in again.";
 
@@ -357,7 +374,7 @@ const CustomerPortal = () => {
 
   const stepFieldMap = useMemo(
     () => ({
-      0: ["customerEmail", "customerPhone", "vehicleNumber"],
+      0: ["customerEmail", "customerPhone", "vehicleNumber", "poNumber"],
   1: ["driverPhone", "helperPhone", "driverLanguage", "helperName", "driverName", "helperLanguage"],
       // step 2 requires at least one document upload; use a special token
       2: ["_anyDocument"],
@@ -436,11 +453,30 @@ const CustomerPortal = () => {
     ) {
       nextValue = formatPhoneValue(value);
     }
+    if (field === "poNumber") {
+      nextValue = value
+        .toUpperCase()
+        .replace(/[^A-Z0-9-\s]/g, "")
+        .slice(0, 50);
+    }
     setFormData((previous) => ({
       ...previous,
       [field]: nextValue,
     }));
     clearFieldError(field);
+
+    // Track which sections are modified
+    const driverFields = ["driverName", "driverPhone", "driverLanguage"];
+    const helperFields = ["helperName", "helperPhone", "helperLanguage"];
+
+    if (driverFields.includes(field)) {
+      setDriverModified(true);
+      setDriverInfoSaved(false);
+    }
+    if (helperFields.includes(field)) {
+      setHelperModified(true);
+      setHelperInfoSaved(false);
+    }
   };
 
   const handleFileSelect = (field, file) => {
@@ -559,6 +595,12 @@ const CustomerPortal = () => {
             validationErrors.vehicleNumber = result;
           }
         }
+        if (field === "poNumber") {
+          const result = validatePoNumber(formData.poNumber);
+          if (result) {
+            validationErrors.poNumber = result;
+          }
+        }
         if (field === "driverPhone") {
           const result = validatePhone(
             formData.driverPhone,
@@ -630,13 +672,41 @@ const CustomerPortal = () => {
   );
 
   const handleNextStep = () => {
-    // allow moving between steps freely; final validation occurs on submit
+    // Require saving only the sections that were modified
+    if (currentStep === 1) {
+      const missingDriverSave = driverModified && !driverInfoSaved;
+      const missingHelperSave = helperModified && !helperInfoSaved;
+
+      if (missingDriverSave && missingHelperSave) {
+        showPopupMessage(
+          "Please save both driver and helper information before continuing.",
+          "warning"
+        );
+        return;
+      } else if (missingDriverSave) {
+        showPopupMessage(
+          "Please save driver information before continuing.",
+          "warning"
+        );
+        return;
+      } else if (missingHelperSave) {
+        showPopupMessage(
+          "Please save helper information before continuing.",
+          "warning"
+        );
+        return;
+      }
+    }
     setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
   };
 
   const handlePreviousStep = () => {
     setCurrentStep((prev) => Math.max(prev - 1, 0));
-  };
+  }
+
+  const isStep1Complete = (
+    (!driverModified || driverInfoSaved) && (!helperModified || helperInfoSaved)
+  );
 
   const validateAll = useCallback(() => {
     const allFields = Object.values(stepFieldMap).flat();
@@ -652,6 +722,10 @@ const CustomerPortal = () => {
     setSuccessData(null);
     setMockNotice("");
     setShowNotify(false);
+    setDriverInfoSaved(false);
+    setHelperInfoSaved(false);
+    setDriverModified(false);
+    setHelperModified(false);
   };
 
   // Auto-dismiss notification when shown
@@ -662,6 +736,14 @@ const CustomerPortal = () => {
     }
     return undefined;
   }, [showNotify]);
+
+  useEffect(() => {
+    if (saveNotification.show) {
+      const id = setTimeout(() => setSaveNotification({ show: false, type: null }), 5000);
+      return () => clearTimeout(id);
+    }
+    return undefined;
+  }, [saveNotification.show]);
 
   // Auto-dismiss generic popup
   useEffect(() => {
@@ -676,6 +758,31 @@ const CustomerPortal = () => {
     setPopupMessage(message);
     setPopupVariant(variant);
     setShowPopup(true);
+  };
+
+  const handleSaveDriverConfirm = () => {
+    setConfirmModal({ show: true, type: "driver" });
+  };
+
+  const handleSaveHelperConfirm = () => {
+    setConfirmModal({ show: true, type: "helper" });
+  };
+
+  const handleConfirmYes = () => {
+    const type = confirmModal.type;
+    setConfirmModal({ show: false, type: null });
+    setSaveNotification({ show: true, type });
+    if (type === "driver") {
+      setDriverInfoSaved(true);
+      setDriverModified(false);
+    } else if (type === "helper") {
+      setHelperInfoSaved(true);
+      setHelperModified(false);
+    }
+  };
+
+  const handleConfirmNo = () => {
+    setConfirmModal({ show: false, type: null });
   };
 
   const makeDemoQr = (vehicleNumber, driverPhone) => {
@@ -799,6 +906,9 @@ const CustomerPortal = () => {
       payload.append("customerPhone", formData.customerPhone);
     }
     payload.append("vehicleNumber", formData.vehicleNumber.trim());
+    if (formData.poNumber) {
+      payload.append("poNumber", formData.poNumber.trim());
+    }
     payload.append("driverPhone", formData.driverPhone);
     if (formData.helperPhone) {
       payload.append("helperPhone", formData.helperPhone);
@@ -1113,6 +1223,70 @@ const CustomerPortal = () => {
           </div>
         </div>
       )}
+      {/* Save Notification */}
+      {saveNotification.show && (
+        <div className="fixed right-6 top-6 z-50 w-full max-w-sm rounded-xl bg-white shadow-xl">
+          <div className="flex items-start gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50">
+              <CheckCircle
+                className="h-5 w-5 text-green-600"
+                aria-hidden="true"
+              />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-gray-900">
+                {saveNotification.type === "driver"
+                  ? "Driver saved successfully"
+                  : "Helper saved successfully"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSaveNotification({ show: false, type: null })}
+              className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+              aria-label="Dismiss notification"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+      {/* Confirmation Modal */}
+      {confirmModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="rounded-2xl bg-white p-8 shadow-xl max-w-sm">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-yellow-50">
+                <AlertCircle className="h-6 w-6 text-yellow-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Confirm Save
+              </h3>
+            </div>
+            <p className="mt-4 text-sm text-gray-600">
+              Do you really want to save the provided{" "}
+              {confirmModal.type === "driver" ? "driver" : "helper"} details
+              for this vehicle?
+            </p>
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={handleConfirmNo}
+                className="flex-1 rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 transition-all duration-200 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              >
+                No
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmYes}
+                className="flex-1 rounded-xl bg-green-500 px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-green-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
+              >
+                Yes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Generic popup (for warnings/info) */}
       {showPopup && (
         <div className="fixed right-6 top-28 z-50 w-full max-w-sm rounded-xl bg-white shadow-lg">
@@ -1344,55 +1518,107 @@ const CustomerPortal = () => {
                     </div>
                   </section>
 
-                  <section className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
-                    <div className="flex items-center gap-3">
-                      <Truck
-                        className="h-5 w-5 text-blue-600"
-                        aria-hidden="true"
-                      />
-                      <h2 className="text-lg font-semibold text-gray-800">
-                        Vehicle Information
-                      </h2>
-                    </div>
-                    <div className="mt-6 grid gap-6">
-                      <div>
-                        <label
-                          htmlFor="vehicleNumber"
-                          className="text-sm font-medium text-gray-700"
-                        >
-                          Vehicle Number<span className="text-red-500"> *</span>
-                        </label>
-                        <input
-                          id="vehicleNumber"
-                          name="vehicleNumber"
-                          type="text"
-                          value={formData.vehicleNumber}
-                          onChange={(event) =>
-                            handleInputChange(
-                              "vehicleNumber",
-                              event.target.value
-                            )
-                          }
-                          placeholder="Enter vehicle number"
-                          className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-semibold tracking-wide text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                            errors.vehicleNumber
-                              ? "border-red-400 bg-red-50 placeholder:text-red-400"
-                              : "border-gray-300 bg-white"
-                          }`}
-                          autoComplete="off"
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    <section className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
+                      <div className="flex items-center gap-3">
+                        <Truck
+                          className="h-5 w-5 text-blue-600"
+                          aria-hidden="true"
                         />
-                        {errors.vehicleNumber && (
-                          <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
-                            <AlertCircle
-                              className="h-4 w-4"
-                              aria-hidden="true"
-                            />
-                            <span>{errors.vehicleNumber}</span>
-                          </div>
-                        )}
+                        <h2 className="text-lg font-semibold text-gray-800">
+                          Vehicle Information
+                        </h2>
                       </div>
-                    </div>
-                  </section>
+                      <div className="mt-6 grid gap-6">
+                        <div>
+                          <label
+                            htmlFor="vehicleNumber"
+                            className="text-sm font-medium text-gray-700"
+                          >
+                            Vehicle Number<span className="text-red-500"> *</span>
+                          </label>
+                          <input
+                            id="vehicleNumber"
+                            name="vehicleNumber"
+                            type="text"
+                            value={formData.vehicleNumber}
+                            onChange={(event) =>
+                              handleInputChange(
+                                "vehicleNumber",
+                                event.target.value
+                              )
+                            }
+                            placeholder="Enter vehicle number"
+                            className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-semibold tracking-wide text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                              errors.vehicleNumber
+                                ? "border-red-400 bg-red-50 placeholder:text-red-400"
+                                : "border-gray-300 bg-white"
+                            }`}
+                            autoComplete="off"
+                          />
+                          {errors.vehicleNumber && (
+                            <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
+                              <AlertCircle
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                              <span>{errors.vehicleNumber}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
+                      <div className="flex items-center gap-3">
+                        <FileText
+                          className="h-5 w-5 text-blue-600"
+                          aria-hidden="true"
+                        />
+                        <h2 className="text-lg font-semibold text-gray-800">
+                          PO Details
+                        </h2>
+                      </div>
+                      <div className="mt-6 grid gap-6">
+                        <div>
+                          <label
+                            htmlFor="poNumber"
+                            className="text-sm font-medium text-gray-700"
+                          >
+                            PO Number<span className="text-red-500"> *</span>
+                          </label>
+                          <input
+                            id="poNumber"
+                            name="poNumber"
+                            type="text"
+                            value={formData.poNumber}
+                            onChange={(event) =>
+                              handleInputChange(
+                                "poNumber",
+                                event.target.value
+                              )
+                            }
+                            placeholder="Enter PO number"
+                            className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-semibold tracking-wide text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                              errors.poNumber
+                                ? "border-red-400 bg-red-50 placeholder:text-red-400"
+                                : "border-gray-300 bg-white"
+                            }`}
+                            autoComplete="off"
+                          />
+                          {errors.poNumber && (
+                            <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
+                              <AlertCircle
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                              <span>{errors.poNumber}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </section>
+                  </div>
                 </>
               )}
 
@@ -1598,6 +1824,24 @@ const CustomerPortal = () => {
                         </div>
                       )}
                     </div>
+                  </div>
+                  <div className="mt-8 grid gap-3 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveDriverConfirm}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-500 px-5 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-green-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
+                    >
+                      <CheckCircle className="h-4 w-4" aria-hidden="true" />
+                      Save Driver Info
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveHelperConfirm}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-500 px-5 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-green-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
+                    >
+                      <CheckCircle className="h-4 w-4" aria-hidden="true" />
+                      Save Helper Info
+                    </button>
                   </div>
                 </section>
               )}
