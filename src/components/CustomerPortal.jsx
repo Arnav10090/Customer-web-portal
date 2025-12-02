@@ -278,6 +278,7 @@ const DocumentUploadField = ({
 };
 
 const CustomerPortal = () => {
+  const { logout } = useAuth();
   const initialToken = getStoredToken();
   const [authToken, setAuthToken] = useState(initialToken);
   const [tokenDraft, setTokenDraft] = useState(initialToken);
