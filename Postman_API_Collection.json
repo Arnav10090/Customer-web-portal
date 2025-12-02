@@ -1,0 +1,950 @@
+{
+  "info": {
+    "name": "Customer Portal Backend API",
+    "description": "Complete API collection for Customer Portal backend testing",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer1@example.com\",\n  \"username\": \"customer1\",\n  \"password\": \"SecurePass123!\",\n  \"password2\": \"SecurePass123!\",\n  \"phone\": \"+919876543210\",\n  \"company_name\": \"ABC Corporation\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/auth/register/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "auth",
+                "register",
+                ""
+              ]
+            },
+            "description": "Register a new customer account"
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer1@example.com\",\n  \"password\": \"SecurePass123!\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/auth/login/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "auth",
+                "login",
+                ""
+              ]
+            },
+            "description": "Login and receive access/refresh tokens"
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/auth/token/refresh/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "auth",
+                "token",
+                "refresh",
+                ""
+              ]
+            },
+            "description": "Refresh access token using refresh token"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/auth/logout/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "auth",
+                "logout",
+                ""
+              ]
+            },
+            "description": "Logout and blacklist refresh token"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Vehicles",
+      "item": [
+        {
+          "name": "List Vehicles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/api/vehicles/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "vehicles",
+                ""
+              ]
+            },
+            "description": "Get list of all vehicles"
+          }
+        },
+        {
+          "name": "Create Vehicle",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vehicle_registration_no\": \"MH12AB1234\",\n  \"vehicle_type\": \"truck\",\n  \"manufacturer\": \"Tata\",\n  \"model\": \"Sumo\",\n  \"year\": 2020,\n  \"color\": \"white\",\n  \"vin_number\": \"VIN123456789ABC\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/vehicles/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "vehicles",
+                ""
+              ]
+            },
+            "description": "Create a new vehicle"
+          }
+        },
+        {
+          "name": "Get Vehicle Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/api/vehicles/MH12AB1234/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "vehicles",
+                "MH12AB1234",
+                ""
+              ]
+            },
+            "description": "Get specific vehicle details by registration number"
+          }
+        },
+        {
+          "name": "Vehicle Lookup (with Driver, Helper & Docs)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/api/vehicles/MH12AB1234/lookup/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "vehicles",
+                "MH12AB1234",
+                "lookup",
+                ""
+              ]
+            },
+            "description": "Auto-fill workflow: Fetch vehicle, driver, helper, and documents"
+          }
+        },
+        {
+          "name": "Update Vehicle",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vehicle_registration_no\": \"MH12AB1234\",\n  \"vehicle_type\": \"truck\",\n  \"manufacturer\": \"Tata\",\n  \"model\": \"Sumo\",\n  \"year\": 2021,\n  \"color\": \"blue\",\n  \"vin_number\": \"VIN123456789ABC\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/vehicles/MH12AB1234/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "vehicles",
+                "MH12AB1234",
+                ""
+              ]
+            },
+            "description": "Update vehicle details"
+          }
+        },
+        {
+          "name": "Delete Vehicle",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/api/vehicles/MH12AB1234/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "vehicles",
+                "MH12AB1234",
+                ""
+              ]
+            },
+            "description": "Delete a vehicle"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Drivers",
+      "item": [
+        {
+          "name": "List Drivers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/api/drivers/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "drivers",
+                ""
+              ]
+            },
+            "description": "Get list of all drivers/helpers"
+          }
+        },
+        {
+          "name": "Create Driver",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"phone_no\": \"+919876543210\",\n  \"type\": \"Driver\",\n  \"language\": \"en\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/drivers/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "drivers",
+                ""
+              ]
+            },
+            "description": "Create a new driver"
+          }
+        },
+        {
+          "name": "Get Driver Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/api/drivers/1/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "drivers",
+                "1",
+                ""
+              ]
+            },
+            "description": "Get specific driver details by ID"
+          }
+        },
+        {
+          "name": "Validate or Create Driver",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Jane Smith\",\n  \"phone_no\": \"+919876543211\",\n  \"type\": \"Helper\",\n  \"language\": \"hi\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/drivers/validate-or-create/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "drivers",
+                "validate-or-create",
+                ""
+              ]
+            },
+            "description": "Validate phone uniqueness and create driver/helper if needed"
+          }
+        },
+        {
+          "name": "Update Driver",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe Updated\",\n  \"phone_no\": \"+919876543210\",\n  \"type\": \"Driver\",\n  \"language\": \"en\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/drivers/1/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "drivers",
+                "1",
+                ""
+              ]
+            },
+            "description": "Update driver details"
+          }
+        },
+        {
+          "name": "Delete Driver",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/api/drivers/1/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "drivers",
+                "1",
+                ""
+              ]
+            },
+            "description": "Delete a driver"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Documents",
+      "item": [
+        {
+          "name": "List Documents",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/api/documents/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "documents",
+                ""
+              ]
+            },
+            "description": "Get list of all active documents"
+          }
+        },
+        {
+          "name": "List Customer Documents",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/api/documents/list/?customer_email=customer1@example.com",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "documents",
+                "list",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "customer_email",
+                  "value": "customer1@example.com"
+                }
+              ]
+            },
+            "description": "List all active documents for a specific customer"
+          }
+        },
+        {
+          "name": "Upload Document",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "customer_email",
+                  "value": "customer1@example.com",
+                  "type": "text"
+                },
+                {
+                  "key": "document_type",
+                  "value": "purchase_order",
+                  "type": "text"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "path/to/file.pdf"
+                },
+                {
+                  "key": "vehicle_id",
+                  "value": "1",
+                  "type": "text",
+                  "disabled": true
+                },
+                {
+                  "key": "driver_id",
+                  "value": "1",
+                  "type": "text",
+                  "disabled": true
+                }
+              ]
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/documents/upload/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "documents",
+                "upload",
+                ""
+              ]
+            },
+            "description": "Upload or replace a document (PDF, JPG, JPEG, PNG - max 5MB)"
+          }
+        },
+        {
+          "name": "Get Document Info",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/api/documents/1/info/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "documents",
+                "1",
+                "info",
+                ""
+              ]
+            },
+            "description": "Get detailed document information"
+          }
+        },
+        {
+          "name": "Download Document",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/api/documents/1/download/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "documents",
+                "1",
+                "download",
+                ""
+              ]
+            },
+            "description": "Download document file from storage"
+          }
+        },
+        {
+          "name": "Remove Document (Soft Delete)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/api/documents/1/remove/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "documents",
+                "1",
+                "remove",
+                ""
+              ]
+            },
+            "description": "Soft delete document (marks as inactive, keeps file on storage)"
+          }
+        },
+        {
+          "name": "Remove Document (Hard Delete)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/api/documents/1/remove/?hard_delete=true",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "documents",
+                "1",
+                "remove",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "hard_delete",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Permanently delete document (removes file from storage)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Submissions",
+      "item": [
+        {
+          "name": "List Submissions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/api/submissions/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "submissions",
+                ""
+              ]
+            },
+            "description": "Get list of all gate entry submissions"
+          }
+        },
+        {
+          "name": "Get Submission Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/api/submissions/1/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "submissions",
+                "1",
+                ""
+              ]
+            },
+            "description": "Get specific submission details by ID"
+          }
+        },
+        {
+          "name": "Create Gate Entry Submission",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "customer_email",
+                  "value": "customer1@example.com",
+                  "type": "text"
+                },
+                {
+                  "key": "customer_phone",
+                  "value": "+919876543210",
+                  "type": "text"
+                },
+                {
+                  "key": "vehicle_number",
+                  "value": "MH12AB1234",
+                  "type": "text"
+                },
+                {
+                  "key": "driver_name",
+                  "value": "John Doe",
+                  "type": "text"
+                },
+                {
+                  "key": "driver_phone",
+                  "value": "+919876543210",
+                  "type": "text"
+                },
+                {
+                  "key": "driver_language",
+                  "value": "en",
+                  "type": "text"
+                },
+                {
+                  "key": "helper_name",
+                  "value": "Jane Smith",
+                  "type": "text"
+                },
+                {
+                  "key": "helper_phone",
+                  "value": "+919876543211",
+                  "type": "text"
+                },
+                {
+                  "key": "helper_language",
+                  "value": "hi",
+                  "type": "text"
+                },
+                {
+                  "key": "purchase_order",
+                  "type": "file",
+                  "src": "path/to/file.pdf",
+                  "disabled": true
+                },
+                {
+                  "key": "vehicle_registration",
+                  "type": "file",
+                  "src": "path/to/file.pdf",
+                  "disabled": true
+                },
+                {
+                  "key": "vehicle_insurance",
+                  "type": "file",
+                  "src": "path/to/file.pdf",
+                  "disabled": true
+                },
+                {
+                  "key": "puc",
+                  "type": "file",
+                  "src": "path/to/file.pdf",
+                  "disabled": true
+                },
+                {
+                  "key": "driver_license",
+                  "type": "file",
+                  "src": "path/to/file.pdf",
+                  "disabled": true
+                },
+                {
+                  "key": "transportation_approval",
+                  "type": "file",
+                  "src": "path/to/file.pdf",
+                  "disabled": true
+                },
+                {
+                  "key": "payment_approval",
+                  "type": "file",
+                  "src": "path/to/file.pdf",
+                  "disabled": true
+                },
+                {
+                  "key": "vendor_approval",
+                  "type": "file",
+                  "src": "path/to/file.pdf",
+                  "disabled": true
+                }
+              ]
+            },
+            "url": {
+              "raw": "http://localhost:8000/api/submissions/create/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "submissions",
+                "create",
+                ""
+              ]
+            },
+            "description": "Create gate entry submission with QR code generation and document handling"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
