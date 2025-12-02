@@ -462,6 +462,20 @@ const CustomerPortal = () => {
       [field]: nextValue,
     }));
     clearFieldError(field);
+
+    // Reset saved state when Step 2 fields are modified
+    const step2Fields = [
+      "driverName",
+      "helperName",
+      "driverPhone",
+      "helperPhone",
+      "driverLanguage",
+      "helperLanguage",
+    ];
+    if (step2Fields.includes(field)) {
+      setDriverInfoSaved(false);
+      setHelperInfoSaved(false);
+    }
   };
 
   const handleFileSelect = (field, file) => {
