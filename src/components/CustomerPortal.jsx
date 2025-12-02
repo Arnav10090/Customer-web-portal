@@ -293,6 +293,7 @@ const CustomerPortal = () => {
   const [docDropdownOpen, setDocDropdownOpen] = useState(false);
   const [docSearch, setDocSearch] = useState("");
   const [docHighlight, setDocHighlight] = useState(0);
+  const [logoutLoading, setLogoutLoading] = useState(false);
   const docButtonRef = useRef(null);
   const docListRef = useRef(null);
 
