@@ -5,6 +5,7 @@ import {
   Download,
   FileText,
   Globe,
+  LogOut,
   Phone,
   RefreshCw,
   Scan,
@@ -14,6 +15,7 @@ import {
   Upload,
   User,
 } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const ACCEPTED_TYPES = [
