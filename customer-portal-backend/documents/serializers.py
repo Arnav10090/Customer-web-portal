@@ -12,7 +12,7 @@ class CustomerDocumentSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'customer_email', 'document_type', 'document_type_display',
             'file_path', 'original_filename', 'file_size', 'file_size_readable',
-            'file_extension', 'file_url', 'file_exists', 'vehicle', 'driver',
+            'file_extension', 'file_url', 'file_exists', 'vehicle', 'driver', 'helper',
             'uploaded_at', 'updated_at', 'is_active'
         ]
         read_only_fields = ['id', 'uploaded_at', 'updated_at']
@@ -58,6 +58,7 @@ class DocumentUploadSerializer(serializers.Serializer):
     file = serializers.FileField()
     vehicle_id = serializers.IntegerField(required=False)
     driver_id = serializers.IntegerField(required=False)
+    helper_id = serializers.IntegerField(required=False)
 
     def validate_file(self, value):
         """

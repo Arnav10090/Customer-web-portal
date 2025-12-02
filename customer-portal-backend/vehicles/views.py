@@ -13,6 +13,25 @@ class VehicleViewSet(viewsets.ModelViewSet):
     serializer_class = VehicleDetailsSerializer
     lookup_field = 'vehicle_registration_no'
 
+    def destroy(self, request, *args, **kwargs):
+        """
+        Override delete to return custom success message
+        
+        DELETE /api/vehicles/{vehicle_registration_no}/
+        
+        Response:
+        {
+            "message": "Vehicle MH12AB1234 deleted successfully"
+        }
+        """
+        vehicle = self.get_object()
+        vehicle_reg_no = vehicle.vehicle_registration_no
+        vehicle.delete()
+        
+        return Response({
+            "message": f"Vehicle {vehicle_reg_no} deleted successfully"
+        }, status=status.HTTP_200_OK)
+
     @action(detail=True, methods=['get'], url_path='lookup')
     def lookup_vehicle(self, request, vehicle_registration_no=None):
         """

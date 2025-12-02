@@ -611,6 +611,12 @@
                   "value": "1",
                   "type": "text",
                   "disabled": true
+                },
+                {
+                  "key": "helper_id",
+                  "value": "2",
+                  "type": "text",
+                  "disabled": true
                 }
               ]
             },

@@ -134,9 +134,10 @@ class GateEntrySubmissionViewSet(viewsets.ModelViewSet):
                         CustomerDocument.replace_document(
                             customer_email=customer_email,
                             document_type=field,
-                            new_file=file,
+                            uploaded_file=file,
                             vehicle=vehicle,
-                            driver=driver
+                            driver=driver,
+                            helper=helper
                         )
 
                 # 8. Create audit log

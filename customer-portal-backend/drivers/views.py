@@ -9,6 +9,31 @@ class DriverHelperViewSet(viewsets.ModelViewSet):
     queryset = DriverHelper.objects.all()
     serializer_class = DriverHelperSerializer
 
+    def destroy(self, request, *args, **kwargs):
+        """
+        Override delete to return custom success message based on type
+        
+        DELETE /api/drivers/{id}/
+        
+        Response (if Driver):
+        {
+            "message": "Driver John Doe deleted successfully"
+        }
+        
+        Response (if Helper):
+        {
+            "message": "Helper John Doe deleted successfully"
+        }
+        """
+        driver = self.get_object()
+        driver_name = driver.name
+        driver_type = driver.type  # "Driver" or "Helper"
+        driver.delete()
+        
+        return Response({
+            "message": f"{driver_type} {driver_name} deleted successfully"
+        }, status=status.HTTP_200_OK)
+
     @action(detail=False, methods=['post'], url_path='validate-or-create')
     def validate_or_create(self, request):
         """

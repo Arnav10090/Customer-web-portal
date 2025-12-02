@@ -45,6 +45,13 @@ class CustomerDocument(models.Model):
         null=True,
         blank=True
     )
+    helper = models.ForeignKey(
+        DriverHelper,
+        on_delete=models.SET_NULL,
+        related_name='helper_documents',
+        null=True,
+        blank=True
+    )
     uploaded_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)  # For soft delete
@@ -144,7 +151,7 @@ class CustomerDocument(models.Model):
             self.save()
 
     @classmethod
-    def replace_document(cls, customer_email, document_type, uploaded_file, vehicle=None, driver=None):
+    def replace_document(cls, customer_email, document_type, uploaded_file, vehicle=None, driver=None, helper=None):
         """
         Replace old document with new one:
         - Save new file to storage
@@ -156,6 +163,9 @@ class CustomerDocument(models.Model):
             customer_email: Customer email
             document_type: Type of document
             uploaded_file: Django UploadedFile object
+            vehicle: Vehicle instance (optional)
+            driver: Driver instance (optional)
+            helper: Helper instance (optional)
             vehicle: Vehicle instance (optional)
             driver: Driver instance (optional)
             
@@ -181,7 +191,8 @@ class CustomerDocument(models.Model):
             file_size=file_info['file_size'],
             file_extension=file_info['file_extension'],
             vehicle=vehicle,
-            driver=driver
+            driver=driver,
+            helper=helper
         )
 
         # Mark old document as replaced (soft delete)

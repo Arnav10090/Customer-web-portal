@@ -36,6 +36,7 @@ class CustomerDocumentViewSet(viewsets.ModelViewSet):
         - file: file (PDF, JPG, JPEG, PNG - max 5MB)
         - vehicle_id: int (optional)
         - driver_id: int (optional)
+        - helper_id: int (optional)
         
         Response:
         {
@@ -44,7 +45,9 @@ class CustomerDocumentViewSet(viewsets.ModelViewSet):
                 "file_path": "/var/customer_portal/documents/...",
                 "original_filename": "PO_12345.pdf",
                 "file_size": 1048576,
-                "document_type": "purchase_order"
+                "document_type": "purchase_order",
+                "driver": {...},
+                "helper": {...}
             },
             "replaced": true/false,
             "message": "..."
@@ -58,23 +61,38 @@ class CustomerDocumentViewSet(viewsets.ModelViewSet):
         uploaded_file = serializer.validated_data['file']
         vehicle_id = serializer.validated_data.get('vehicle_id')
         driver_id = serializer.validated_data.get('driver_id')
+        helper_id = serializer.validated_data.get('helper_id')
 
-        # Get vehicle and driver objects
+        # Get vehicle, driver, and helper objects
         vehicle = None
         driver = None
+        helper = None
         if vehicle_id:
             from vehicles.models import VehicleDetails
             try:
                 vehicle = VehicleDetails.objects.get(id=vehicle_id)
             except VehicleDetails.DoesNotExist:
-                pass
+                return Response({
+                    "error": f"Vehicle with id {vehicle_id} does not exist"
+                }, status=status.HTTP_400_BAD_REQUEST)
 
         if driver_id:
             from drivers.models import DriverHelper
             try:
                 driver = DriverHelper.objects.get(id=driver_id)
             except DriverHelper.DoesNotExist:
-                pass
+                return Response({
+                    "error": f"Driver with id {driver_id} does not exist"
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        if helper_id:
+            from drivers.models import DriverHelper
+            try:
+                helper = DriverHelper.objects.get(id=helper_id)
+            except DriverHelper.DoesNotExist:
+                return Response({
+                    "error": f"Helper with id {helper_id} does not exist"
+                }, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if document exists (for replacement)
         existing = CustomerDocument.objects.filter(
@@ -92,7 +110,8 @@ class CustomerDocumentViewSet(viewsets.ModelViewSet):
                 document_type=document_type,
                 uploaded_file=uploaded_file,
                 vehicle=vehicle,
-                driver=driver
+                driver=driver,
+                helper=helper
             )
 
             return Response({
