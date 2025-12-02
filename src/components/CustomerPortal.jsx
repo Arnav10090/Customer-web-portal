@@ -359,6 +359,8 @@ const CustomerPortal = () => {
   const [showPopup, setShowPopup] = useState(false);
   const [popupMessage, setPopupMessage] = useState("");
   const [popupVariant, setPopupVariant] = useState("info");
+  const [confirmModal, setConfirmModal] = useState({ show: false, type: null });
+  const [saveNotification, setSaveNotification] = useState({ show: false, type: null });
   const missingTokenMessage =
     "Authentication token is missing. Please sign in again.";
 
@@ -686,6 +688,14 @@ const CustomerPortal = () => {
     return undefined;
   }, [showNotify]);
 
+  useEffect(() => {
+    if (saveNotification.show) {
+      const id = setTimeout(() => setSaveNotification({ show: false, type: null }), 5000);
+      return () => clearTimeout(id);
+    }
+    return undefined;
+  }, [saveNotification.show]);
+
   // Auto-dismiss generic popup
   useEffect(() => {
     if (showPopup) {
@@ -699,6 +709,24 @@ const CustomerPortal = () => {
     setPopupMessage(message);
     setPopupVariant(variant);
     setShowPopup(true);
+  };
+
+  const handleSaveDriverConfirm = () => {
+    setConfirmModal({ show: true, type: "driver" });
+  };
+
+  const handleSaveHelperConfirm = () => {
+    setConfirmModal({ show: true, type: "helper" });
+  };
+
+  const handleConfirmYes = () => {
+    const type = confirmModal.type;
+    setConfirmModal({ show: false, type: null });
+    setSaveNotification({ show: true, type });
+  };
+
+  const handleConfirmNo = () => {
+    setConfirmModal({ show: false, type: null });
   };
 
   const makeDemoQr = (vehicleNumber, driverPhone) => {
@@ -1136,6 +1164,70 @@ const CustomerPortal = () => {
             >
               <X className="h-4 w-4" />
             </button>
+          </div>
+        </div>
+      )}
+      {/* Save Notification */}
+      {saveNotification.show && (
+        <div className="fixed right-6 top-6 z-50 w-full max-w-sm rounded-xl bg-white shadow-xl">
+          <div className="flex items-start gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50">
+              <CheckCircle
+                className="h-5 w-5 text-green-600"
+                aria-hidden="true"
+              />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-gray-900">
+                {saveNotification.type === "driver"
+                  ? "Driver saved successfully"
+                  : "Helper saved successfully"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSaveNotification({ show: false, type: null })}
+              className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+              aria-label="Dismiss notification"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+      {/* Confirmation Modal */}
+      {confirmModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="rounded-2xl bg-white p-8 shadow-xl max-w-sm">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-yellow-50">
+                <AlertCircle className="h-6 w-6 text-yellow-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Confirm Save
+              </h3>
+            </div>
+            <p className="mt-4 text-sm text-gray-600">
+              Do you really want to save the provided{" "}
+              {confirmModal.type === "driver" ? "driver" : "helper"} details
+              for this vehicle?
+            </p>
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={handleConfirmNo}
+                className="flex-1 rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 transition-all duration-200 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              >
+                No
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmYes}
+                className="flex-1 rounded-xl bg-green-500 px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-green-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
+              >
+                Yes
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1676,6 +1768,24 @@ const CustomerPortal = () => {
                         </div>
                       )}
                     </div>
+                  </div>
+                  <div className="mt-8 grid gap-3 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveDriverConfirm}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-500 px-5 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-green-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
+                    >
+                      <CheckCircle className="h-4 w-4" aria-hidden="true" />
+                      Save Driver Info
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveHelperConfirm}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-500 px-5 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-green-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
+                    >
+                      <CheckCircle className="h-4 w-4" aria-hidden="true" />
+                      Save Helper Info
+                    </button>
                   </div>
                 </section>
               )}
