@@ -6,6 +6,7 @@ import {
   FileText,
   Globe,
   LogOut,
+  Loader,
   Phone,
   RefreshCw,
   Scan,
