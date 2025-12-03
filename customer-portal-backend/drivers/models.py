@@ -1,3 +1,4 @@
+# customer-portal-backend/drivers/models.py
 from django.db import models
 from django.core.validators import RegexValidator
 from django.core.exceptions import ValidationError
@@ -13,6 +14,16 @@ LANGUAGE_CHOICES = (
     ('mr', 'Marathi'),
     ('gu', 'Gujarati'),
     ('ta', 'Tamil'),
+    ('te', 'Telugu'),
+    ('kn', 'Kannada'),
+    ('ml', 'Malayalam'),
+    ('bn', 'Bengali'),
+    ('or', 'Odia'),
+    ('pa', 'Punjabi'),
+    ('as', 'Assamese'),
+    ('ur', 'Urdu'),
+    ('sa', 'Sanskrit'),
+    ('mai', 'Maithili'),
 )
 
 class DriverHelper(models.Model):
@@ -47,17 +58,17 @@ class DriverHelper(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.name} ({self.type}) - {self.phone_no}"
+        return f"{self.name} ({self.type}) - {self.phoneNo}"
 
     def clean(self):
         """
         Validation: If phone exists but name mismatch → raise error
         """
-        if self.phone_no:
-            existing = DriverHelper.objects.filter(phone_no=self.phone_no).exclude(pk=self.pk).first()
+        if self.phoneNo:
+            existing = DriverHelper.objects.filter(phoneNo=self.phoneNo).exclude(pk=self.pk).first()
             if existing and existing.name.lower() != self.name.lower():
                 raise ValidationError(
-                    f"Phone number {self.phone_no} is already registered with a different name: {existing.name}"
+                    f"Phone number {self.phoneNo} is already registered with a different name: {existing.name}"
                 )
 
     @classmethod
@@ -69,7 +80,7 @@ class DriverHelper(models.Model):
         - If phone doesn't exist → create new
         """
         try:
-            existing = cls.objects.get(phone_no=phone_no)
+            existing = cls.objects.get(phoneNo=phone_no)
             if existing.name.lower() == name.lower():
                 # Update language if changed
                 if existing.language != language:
@@ -85,8 +96,10 @@ class DriverHelper(models.Model):
             # Create new driver/helper
             instance = cls.objects.create(
                 name=name,
-                phone_no=phone_no,
+                phoneNo=phone_no,
                 type=driver_type,
-                language=language
+                language=language,
+                isBlacklisted=False,
+                rating=None
             )
             return instance, True  # (instance, created)

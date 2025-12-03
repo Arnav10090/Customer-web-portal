@@ -1,3 +1,4 @@
+# customer-portal-backend/drivers/views.py
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -14,20 +15,10 @@ class DriverHelperViewSet(viewsets.ModelViewSet):
         Override delete to return custom success message based on type
         
         DELETE /api/drivers/{id}/
-        
-        Response (if Driver):
-        {
-            "message": "Driver John Doe deleted successfully"
-        }
-        
-        Response (if Helper):
-        {
-            "message": "Helper John Doe deleted successfully"
-        }
         """
         driver = self.get_object()
         driver_name = driver.name
-        driver_type = driver.type  # "Driver" or "Helper"
+        driver_type = driver.type
         driver.delete()
         
         return Response({
@@ -44,7 +35,7 @@ class DriverHelperViewSet(viewsets.ModelViewSet):
         Request:
         {
             "name": "John Doe",
-            "phone_no": "+919876543210",
+            "phoneNo": "+919876543210",
             "type": "Driver",
             "language": "en"
         }
@@ -60,7 +51,7 @@ class DriverHelperViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
 
         name = serializer.validated_data['name']
-        phone_no = serializer.validated_data['phone_no']
+        phone_no = serializer.validated_data['phoneNo']
         driver_type = serializer.validated_data['type']
         language = serializer.validated_data.get('language', 'en')
 

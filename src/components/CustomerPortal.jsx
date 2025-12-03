@@ -21,6 +21,7 @@ import { useAuth } from "../context/AuthContext";
 import {
   submissionsAPI,
   documentsAPI,
+  driversAPI,
   vehiclesAPI,
   poDetailsAPI,
 } from "../services/api";
@@ -960,21 +961,29 @@ const CustomerPortal = () => {
     // If on step 1, save driver and helper info
     if (currentStep === 1) {
       try {
+        setLoading(true);
+
         // Save driver info
         const driverPayload = {
           name: formData.driverName.trim(),
-          phone_no: formData.driverPhone,
+          phoneNo: formData.driverPhone,
           type: "Driver",
           language: formData.driverLanguage,
         };
 
+        const driverResponse = await driversAPI.validateOrCreate(driverPayload);
+        console.log("Driver saved:", driverResponse.data);
+
         // Save helper info
         const helperPayload = {
           name: formData.helperName.trim(),
-          phone_no: formData.helperPhone,
+          phoneNo: formData.helperPhone,
           type: "Helper",
           language: formData.helperLanguage,
         };
+
+        const helperResponse = await driversAPI.validateOrCreate(helperPayload);
+        console.log("Helper saved:", helperResponse.data);
 
         showPopupMessage(
           "Driver and helper information saved successfully",
@@ -988,6 +997,8 @@ const CustomerPortal = () => {
           "warning"
         );
         return; // Don't proceed if save fails
+      } finally {
+        setLoading(false);
       }
     }
 

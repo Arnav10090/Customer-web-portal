@@ -123,11 +123,9 @@ export const documentsAPI = {
 };
 
 // Submissions endpoints
-// Submissions endpoints
 export const submissionsAPI = {
   getSubmissions: (params) => api.get("/submissions/", { params }),
 
-  // Fix this endpoint to match Django backend
   createSubmission: (data) => {
     const config = {};
     if (data instanceof FormData) {
@@ -146,8 +144,6 @@ export const submissionsAPI = {
 };
 
 // Vehicles endpoints
-// Vehicles endpoints
-// Vehicles endpoints
 export const vehiclesAPI = {
   getVehicles: (params) => api.get("/vehicles/", { params }),
 
@@ -164,6 +160,11 @@ export const vehiclesAPI = {
 
   lookupVehicle: (vehicleNumber) =>
     api.get(`/vehicles/${vehicleNumber}/lookup/`),
+
+  getVehicleCompleteData: (vehicleRegNo) =>
+    api.get(`/vehicles/vehicle-complete-data/`, {
+      params: { vehicle_reg_no: vehicleRegNo },
+    }),
 };
 
 // PO Details endpoints
