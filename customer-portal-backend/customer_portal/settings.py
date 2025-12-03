@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from decouple import config
 from datetime import timedelta
@@ -118,3 +119,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Custom user model
 AUTH_USER_MODEL = 'authentication.CustomerUser'
+
+# Document storage configuration
+DOCUMENT_STORAGE_PATH = os.path.join(BASE_DIR, 'documents')
+
+# Ensure directory exists
+os.makedirs(DOCUMENT_STORAGE_PATH, exist_ok=True)

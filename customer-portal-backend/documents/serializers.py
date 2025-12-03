@@ -1,5 +1,14 @@
 from rest_framework import serializers
-from .models import CustomerDocument
+from .models import CustomerDocument, DocumentControl
+
+class DocumentControlSerializer(serializers.ModelSerializer):
+    """Serializer for DocumentControl model"""
+    type_display = serializers.CharField(source='get_type_display', read_only=True)
+    
+    class Meta:
+        model = DocumentControl
+        fields = ['id', 'name', 'type', 'type_display', 'referenceId', 'filePath', 'created']
+        read_only_fields = ['id', 'created']
 
 class CustomerDocumentSerializer(serializers.ModelSerializer):
     document_type_display = serializers.CharField(source='get_document_type_display', read_only=True)

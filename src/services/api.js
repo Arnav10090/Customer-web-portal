@@ -84,8 +84,6 @@ export const authAPI = {
     try {
       const refreshToken = localStorage.getItem("refreshToken");
       if (refreshToken) {
-        // Create a new axios instance for logout without interceptors
-        // to avoid token refresh retry logic
         await axios.post(
           `${API_BASE_URL}/auth/logout/`,
           { refresh: refreshToken },
@@ -98,9 +96,7 @@ export const authAPI = {
       }
     } catch (error) {
       console.error("Logout API error:", error);
-      // Continue with local cleanup even if API call fails
     } finally {
-      // Always clear local storage
       localStorage.removeItem("accessToken");
       localStorage.removeItem("refreshToken");
       localStorage.removeItem("user");
@@ -117,6 +113,16 @@ export const documentsAPI = {
       headers: { "Content-Type": "multipart/form-data" },
     }),
 
+  /**
+   * Upload document to DocumentControl table with local storage
+   * @param {FormData} formData - Must include: file, document_type, and optional reference fields
+   * @returns {Promise} - Response with document details
+   */
+  uploadToDocumentControl: (formData) =>
+    api.post("/documents/upload-to-control/", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }),
+
   getDocument: (id) => api.get(`/documents/${id}/`),
 
   deleteDocument: (id) => api.delete(`/documents/${id}/`),
@@ -129,7 +135,6 @@ export const submissionsAPI = {
   createSubmission: (data) => {
     const config = {};
     if (data instanceof FormData) {
-      // Don't set Content-Type for FormData - let browser handle it
       config.headers = { "Content-Type": "multipart/form-data" };
     }
     return api.post("/submissions/create/", data, config);

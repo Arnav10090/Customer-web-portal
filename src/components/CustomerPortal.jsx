@@ -784,30 +784,111 @@ const CustomerPortal = () => {
     });
   };
 
-  const handleUploadStaged = () => {
-    if (!stagedFile) {
-      setErrors((previous) => ({
-        ...previous,
-        staged: "No file selected to upload.",
-      }));
-      return;
+  const handleUploadStaged = async () => {
+  if (!stagedFile) {
+    setErrors((previous) => ({
+      ...previous,
+      staged: "No file selected to upload.",
+    }));
+    return;
+  }
+
+  // Show loading state
+  setLoading(true);
+  
+  try {
+    // Prepare FormData for API call
+    const formData = new FormData();
+    formData.append('file', stagedFile);
+    formData.append('document_type', selectedDocType);
+    
+    // Add reference fields based on what's available
+    if (formData.vehicleNumber) {
+      formData.append('vehicle_number', formData.vehicleNumber.trim());
     }
-    // Append staged file to selected document type (allow multiple of same type)
-    setFiles((previous) => {
-      const existing = previous[selectedDocType];
-      const arr = Array.isArray(existing)
-        ? existing
-        : existing
-        ? [existing]
-        : [];
-      return {
-        ...previous,
-        [selectedDocType]: [...arr, stagedFile],
-      };
-    });
-    setStagedFile(null);
-    clearFieldError(selectedDocType);
-  };
+    if (formData.poNumber) {
+      formData.append('po_number', formData.poNumber.trim());
+    }
+    if (formData.driverPhone) {
+      formData.append('driver_phone', formData.driverPhone);
+    }
+    if (formData.helperPhone) {
+      formData.append('helper_phone', formData.helperPhone);
+    }
+
+    // Call API to upload document
+    const response = await documentsAPI.uploadToDocumentControl(formData);
+    
+    if (response.data && response.data.document) {
+      // Success - document saved to local storage and database
+      console.log('Document uploaded successfully:', response.data);
+      
+      // Store file info in local state (for display purposes)
+      setFiles((previous) => {
+        const existing = previous[selectedDocType];
+        const arr = Array.isArray(existing)
+          ? existing
+          : existing
+          ? [existing]
+          : [];
+        
+        // Store file object with database info
+        const fileWithInfo = {
+          ...stagedFile,
+          documentId: response.data.document.id,
+          filePath: response.data.document.filePath,
+          name: stagedFile.name,
+        };
+        
+        return {
+          ...previous,
+          [selectedDocType]: [...arr, fileWithInfo],
+        };
+      });
+      
+      // Clear staged file
+      setStagedFile(null);
+      clearFieldError(selectedDocType);
+      
+      // Show success message
+      showPopupMessage(
+        `${documentOptions.find(d => d.id === selectedDocType)?.label} uploaded successfully`,
+        'info'
+      );
+    }
+  } catch (error) {
+    console.error('Upload error:', error);
+    
+    // Handle different error types
+    let errorMessage = 'Failed to upload document. Please try again.';
+    
+    if (error.response) {
+      const status = error.response.status;
+      const data = error.response.data;
+      
+      if (status === 400) {
+        errorMessage = data?.error || 'Invalid file or missing reference information.';
+      } else if (status === 401) {
+        errorMessage = 'Authentication failed. Please sign in again.';
+      } else if (status === 413) {
+        errorMessage = 'File is too large. Maximum size is 5MB.';
+      } else if (data?.error) {
+        errorMessage = data.error;
+      }
+    } else if (error.request) {
+      errorMessage = 'Network error. Please check your connection.';
+    }
+    
+    setErrors((previous) => ({
+      ...previous,
+      staged: errorMessage,
+    }));
+    
+    showPopupMessage(errorMessage, 'warning');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleClearUploaded = (field, index = null) => {
     setFiles((previous) => {
