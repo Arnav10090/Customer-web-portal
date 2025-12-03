@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'documents',
     'submissions',
     'authentication',
+    'po_details',
 ]
 
 MIDDLEWARE = [

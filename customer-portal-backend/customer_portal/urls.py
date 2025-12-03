@@ -10,6 +10,7 @@ urlpatterns = [
     path('api/drivers/', include('drivers.urls')),
     path('api/documents/', include('documents.urls')),
     path('api/submissions/', include('submissions.urls')),
+    path('api/po-details/', include('po_details.urls')),  # Add this
 ]
 
 if settings.DEBUG:

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from "react";
+import axios from "axios";
 import { authAPI } from "../services/api";
 
 const AuthContext = createContext();
@@ -13,17 +14,57 @@ export const AuthProvider = ({ children }) => {
     // Check if user is already logged in (from localStorage)
     const storedUser = localStorage.getItem("user");
     const accessToken = localStorage.getItem("accessToken");
-    if (storedUser && accessToken) {
-      try {
-        setUser(JSON.parse(storedUser));
-        setIsLoggedIn(true);
-      } catch (err) {
-        localStorage.removeItem("user");
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
+    const refreshToken = localStorage.getItem("refreshToken");
+
+    const validateToken = async () => {
+      // If we have a refresh token, try to refresh the access token first.
+      if (storedUser && refreshToken) {
+        try {
+          const apiBase = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+          const resp = await axios.post(`${apiBase}/auth/token/refresh/`, { refresh: refreshToken });
+          const newAccess = resp.data?.access;
+          if (newAccess) {
+            localStorage.setItem('accessToken', newAccess);
+            setUser(JSON.parse(storedUser));
+            setIsLoggedIn(true);
+            setLoading(false);
+            return;
+          }
+        } catch (err) {
+          // Refresh failed — fall through to clearing storage below
+          console.warn('Refresh token validation failed:', err.response?.data || err.message);
+        }
       }
-    }
-    setLoading(false);
+
+      // If no refresh token, but an access token exists, try validating it directly
+      if (storedUser && accessToken) {
+        try {
+          const testInstance = axios.create({
+            baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`
+            }
+          });
+          await testInstance.get('/auth/user/');
+          setUser(JSON.parse(storedUser));
+          setIsLoggedIn(true);
+          setLoading(false);
+          return;
+        } catch (err) {
+          console.warn('Access token validation failed:', err.response?.data || err.message);
+        }
+      }
+
+      // No valid token found — clear storage
+      localStorage.removeItem("user");
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      setUser(null);
+      setIsLoggedIn(false);
+      setLoading(false);
+    };
+
+    validateToken();
   }, []);
 
   const login = async (email, password) => {
@@ -37,13 +78,18 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem("accessToken", tokens.access);
       localStorage.setItem("refreshToken", tokens.refresh);
       
-      // Store user data
+      // Store user data - map both old and new field names
       const userToStore = {
         id: userData.id,
         email: userData.email,
         username: userData.username,
-        phone: userData.phone,
-        company_name: userData.company_name,
+        // Support both old (phone, company_name) and new (telephone) field names
+        phone: userData.telephone || userData.phone,
+        telephone: userData.telephone,
+        firstName: userData.firstName || userData.first_name,
+        lastName: userData.lastName || userData.last_name,
+        userType: userData.userType,
+        empId: userData.empId,
       };
       localStorage.setItem("user", JSON.stringify(userToStore));
       
@@ -66,12 +112,13 @@ export const AuthProvider = ({ children }) => {
       const response = await authAPI.register({
         email: formData.email,
         username: formData.username,
-        first_name: formData.firstname,
-        last_name: formData.lastname,
+        // Map frontend field names to TTMS field names
+        firstName: formData.firstname,
+        lastName: formData.lastname,
         password: formData.password,
         verify_password: formData.verify_password,
-        phone: formData.phone,
-        company_name: formData.company_name,
+        telephone: formData.phone,
+        userType: 'customer', // Default to customer
       });
       
       const { user: userData, tokens } = response.data;
@@ -80,13 +127,18 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem("accessToken", tokens.access);
       localStorage.setItem("refreshToken", tokens.refresh);
       
-      // Store user data
+      // Store user data - map both old and new field names
       const userToStore = {
         id: userData.id,
         email: userData.email,
         username: userData.username,
-        phone: userData.phone,
-        company_name: userData.company_name,
+        // Support both old (phone, company_name) and new (telephone) field names
+        phone: userData.telephone || userData.phone,
+        telephone: userData.telephone,
+        firstName: userData.firstName || userData.first_name,
+        lastName: userData.lastName || userData.last_name,
+        userType: userData.userType,
+        empId: userData.empId,
       };
       localStorage.setItem("user", JSON.stringify(userToStore));
       
@@ -110,6 +162,11 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setIsLoggedIn(false);
     setError(null);
+    
+    // Clear form data from localStorage on logout
+    localStorage.removeItem("customerPortal_formData");
+    localStorage.removeItem("customerPortal_files");
+    localStorage.removeItem("customerPortal_currentStep");
   };
 
   return (

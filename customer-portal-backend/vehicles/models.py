@@ -1,11 +1,19 @@
 from django.db import models
 from django.core.validators import RegexValidator
+from django.conf import settings
 
 class VehicleDetails(models.Model):
     """
     Vehicle registration and tracking information
     """
-    
+    customer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='vehicles',
+        null=True,
+        blank=True,
+        db_column='customer_id'
+    )
     vehicleRegistrationNo = models.CharField(
         max_length=50,
         unique=True,
@@ -27,4 +35,4 @@ class VehicleDetails(models.Model):
         ordering = ['-created']
 
     def __str__(self):
-        return self.vehicle_registration_no
+        return self.vehicleRegistrationNo

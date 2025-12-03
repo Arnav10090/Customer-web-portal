@@ -15,9 +15,10 @@ import {
   Truck,
   Upload,
   User,
+  ChevronDown,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { submissionsAPI, documentsAPI } from "../services/api";
+import { submissionsAPI, documentsAPI, vehiclesAPI, poDetailsAPI } from "../services/api";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const ACCEPTED_TYPES = [
@@ -274,9 +275,35 @@ const DocumentUploadField = ({
 
 const CustomerPortal = () => {
   const { logout, user } = useAuth();
-  const [currentStep, setCurrentStep] = useState(0);
-  const [formData, setFormData] = useState(initialFormData);
-  const [files, setFiles] = useState(initialFiles);
+
+  // Initialize from localStorage or use defaults
+  const [currentStep, setCurrentStep] = useState(() => {
+    try {
+      const saved = localStorage.getItem("customerPortal_currentStep");
+      return saved ? parseInt(saved, 10) : 0;
+    } catch {
+      return 0;
+    }
+  });
+
+  const [formData, setFormData] = useState(() => {
+    try {
+      const saved = localStorage.getItem("customerPortal_formData");
+      return saved ? JSON.parse(saved) : initialFormData;
+    } catch {
+      return initialFormData;
+    }
+  });
+
+  const [files, setFiles] = useState(() => {
+    try {
+      const saved = localStorage.getItem("customerPortal_files");
+      return saved ? JSON.parse(saved) : initialFiles;
+    } catch {
+      return initialFiles;
+    }
+  });
+
   const [errors, setErrors] = useState({});
   const [selectedDocType, setSelectedDocType] = useState(documentOptions[0].id);
   const [stagedFile, setStagedFile] = useState(null);
@@ -284,19 +311,264 @@ const CustomerPortal = () => {
   const [docSearch, setDocSearch] = useState("");
   const [docHighlight, setDocHighlight] = useState(0);
   const [logoutLoading, setLogoutLoading] = useState(false);
+
+  // Vehicle dropdown state
+  const [vehicles, setVehicles] = useState([]);
+  const [vehicleDropdownOpen, setVehicleDropdownOpen] = useState(false);
+  const [vehicleSearch, setVehicleSearch] = useState("");
+  const [loadingVehicles, setLoadingVehicles] = useState(false);
+  const [selectedVehicle, setSelectedVehicle] = useState(null);
+  const [vehicleData, setVehicleData] = useState(null);
+  const [loadingVehicleData, setLoadingVehicleData] = useState(false);
+
+  const [myVehicles, setMyVehicles] = useState([]);
+  const [vehicleHighlight, setVehicleHighlight] = useState(0);
+  const [autoFillData, setAutoFillData] = useState(null);
+
   const docButtonRef = useRef(null);
   const docListRef = useRef(null);
+  const vehicleButtonRef = useRef(null);
+  const vehicleListRef = useRef(null);
 
-  // Auto-populate customer details from logged-in user
+  // Fetch user's vehicles on component mount
+  useEffect(() => {
+    const fetchMyVehicles = async () => {
+      try {
+        setLoadingVehicles(true);
+        const response = await vehiclesAPI.getMyVehicles();
+        setMyVehicles(response.data.vehicles || []);
+      } catch (error) {
+        console.error("Failed to fetch vehicles:", error);
+      } finally {
+        setLoadingVehicles(false);
+      }
+    };
+
+    if (user) {
+      fetchMyVehicles();
+    }
+  }, [user]);
+
+  // Handle vehicle selection from dropdown
+  const handleVehicleSelect = async (vehicleNumber) => {
+    setFormData((prev) => ({ ...prev, vehicleNumber }));
+    setVehicleDropdownOpen(false);
+
+    // Trigger auto-fill
+    try {
+      const response = await vehiclesAPI.createOrGetVehicle(vehicleNumber);
+      const { driver, helper, documents } = response.data;
+
+      // Auto-fill driver data
+      if (driver) {
+        setFormData((prev) => ({
+          ...prev,
+          driverName: driver.name || "",
+          driverPhone: driver.phoneNo || "",
+          driverLanguage: driver.language || "en",
+        }));
+        setDriverInfoSaved(true);
+      }
+
+      // Auto-fill helper data
+      if (helper) {
+        setFormData((prev) => ({
+          ...prev,
+          helperName: helper.name || "",
+          helperPhone: helper.phoneNo || "",
+          helperLanguage: helper.language || "en",
+        }));
+        setHelperInfoSaved(true);
+      }
+
+      // Store documents data
+      setAutoFillData({ driver, helper, documents });
+
+      showPopupMessage("Vehicle data loaded successfully", "info");
+    } catch (error) {
+      console.error("Failed to load vehicle data:", error);
+      showPopupMessage("Failed to load vehicle data", "warning");
+    }
+  };
+
+  // Handle vehicle number blur (when user manually enters and tabs out)
+  const handleVehicleNumberBlur = async () => {
+    const vehicleNumber = formData.vehicleNumber.trim();
+    if (!vehicleNumber || vehicleNumber.length < 4) return;
+
+    // Check if this vehicle exists in my vehicles
+    const exists = myVehicles.some(
+      (v) => v.vehicleRegistrationNo === vehicleNumber
+    );
+    if (exists) {
+      await handleVehicleSelect(vehicleNumber);
+    } else {
+      // Create new vehicle entry
+      try {
+        await vehiclesAPI.createOrGetVehicle(vehicleNumber);
+        // Refresh my vehicles list
+        const response = await vehiclesAPI.getMyVehicles();
+        setMyVehicles(response.data.vehicles || []);
+      } catch (error) {
+        console.error("Failed to create vehicle:", error);
+      }
+    }
+  };
+
+  // Handle PO number blur
+  const handlePONumberBlur = async () => {
+    const poNumber = formData.poNumber.trim();
+    if (!poNumber || poNumber.length < 2) return;
+
+    try {
+      await poDetailsAPI.createOrGetPO(poNumber);
+    } catch (error) {
+      console.error("Failed to save PO:", error);
+    }
+  };
+
+  // Auto-populate customer details from logged-in user and reset on logout
   useEffect(() => {
     if (user && user.email && user.phone) {
+      // User logged in - set only email and phone
       setFormData((prev) => ({
         ...prev,
         customerEmail: user.email,
         customerPhone: user.phone,
       }));
+    } else if (!user) {
+      // User logged out - reset entire form
+      setFormData(initialFormData);
+      setFiles(initialFiles);
+      setErrors({});
+      setCurrentStep(0);
+      setSubmitError("");
+      setSuccessData(null);
+      setVehicles([]);
+      setSelectedVehicle(null);
+      setVehicleData(null);
     }
-  }, [user]);
+  }, [user?.id]); // Only trigger on user change, not on every render
+
+  // Fetch user's vehicles - separate effect to avoid multiple calls
+  useEffect(() => {
+    if (user && user.email) {
+      console.log("User logged in, checking token...");
+      const token = localStorage.getItem("accessToken");
+      console.log("Access token exists:", !!token);
+      if (token) {
+        console.log("Token first 20 chars:", token.substring(0, 20) + "...");
+      }
+      fetchUserVehicles();
+    }
+  }, [user?.id]); // Only trigger when user ID changes
+
+  // Fetch user's vehicles from API
+  const fetchUserVehicles = async () => {
+    try {
+      setLoadingVehicles(true);
+      console.log("Fetching vehicles for user:", user?.email);
+      const response = await vehiclesAPI.getMyVehicles();
+      console.log("Vehicles fetched successfully:", response.data);
+      setVehicles(response.data.vehicles || []);
+      setErrors((prev) => ({ ...prev, vehiclesFetch: null }));
+    } catch (error) {
+      console.error(
+        "Failed to fetch vehicles:",
+        error.response || error.message
+      );
+      // If it's a 401, it means token issue, but user is logged in so just show empty
+      if (error.response?.status === 401) {
+        console.warn("Got 401 when fetching vehicles - token may be invalid");
+        setVehicles([]);
+        // Token might be expired, no need to show error
+      } else {
+        console.error("Error details:", error.response?.data);
+        setErrors((prev) => ({
+          ...prev,
+          vehiclesFetch:
+            "Could not load your vehicles. You can still enter them manually.",
+        }));
+      }
+    } finally {
+      setLoadingVehicles(false);
+    }
+  };
+
+  // Fetch complete data for selected vehicle
+  const fetchVehicleData = async (vehicleRegNo) => {
+    try {
+      setLoadingVehicleData(true);
+      const response = await vehiclesAPI.getVehicleCompleteData(vehicleRegNo);
+      setVehicleData(response.data);
+
+      // Auto-fill form data with fetched data
+      autofillFormData(response.data);
+    } catch (error) {
+      console.error("Failed to fetch vehicle data:", error);
+      setVehicleData(null);
+    } finally {
+      setLoadingVehicleData(false);
+    }
+  };
+
+  // Auto-fill form fields from fetched vehicle data
+  const autofillFormData = (data) => {
+    const updates = {
+      vehicleNumber: data.vehicle.vehicleRegistrationNo,
+    };
+
+    // Auto-fill driver info if available
+    if (data.drivers && data.drivers.length > 0) {
+      const driver = data.drivers[0];
+      updates.driverName = driver.name;
+      updates.driverPhone = driver.phoneNo;
+      updates.driverLanguage = driver.language;
+    }
+
+    // Auto-fill helper info if available
+    if (data.helpers && data.helpers.length > 0) {
+      const helper = data.helpers[0];
+      updates.helperName = helper.name;
+      updates.helperPhone = helper.phoneNo;
+      updates.helperLanguage = helper.language;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      ...updates,
+    }));
+  };
+
+  // Save formData to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem("customerPortal_formData", JSON.stringify(formData));
+    } catch (error) {
+      console.error("Failed to save form data to localStorage:", error);
+    }
+  }, [formData]);
+
+  // Save files to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem("customerPortal_files", JSON.stringify(files));
+    } catch (error) {
+      console.error("Failed to save files to localStorage:", error);
+    }
+  }, [files]);
+
+  // Save currentStep to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "customerPortal_currentStep",
+        currentStep.toString()
+      );
+    } catch (error) {
+      console.error("Failed to save current step to localStorage:", error);
+    }
+  }, [currentStep]);
 
   // click-away to close dropdown
   useEffect(() => {
@@ -738,6 +1010,11 @@ const CustomerPortal = () => {
     setHelperInfoSaved(false);
     setDriverModified(false);
     setHelperModified(false);
+
+    // Clear localStorage
+    localStorage.removeItem("customerPortal_formData");
+    localStorage.removeItem("customerPortal_files");
+    localStorage.removeItem("customerPortal_currentStep");
   };
 
   // Auto-dismiss notification when shown
@@ -978,6 +1255,11 @@ const CustomerPortal = () => {
           submission.driver_phone ||
           formData.driverPhone,
       });
+
+      // Clear localStorage after successful submission
+      localStorage.removeItem("customerPortal_formData");
+      localStorage.removeItem("customerPortal_files");
+      localStorage.removeItem("customerPortal_currentStep");
 
       setShowNotify(true);
       setMockNotice("");
@@ -1467,6 +1749,93 @@ const CustomerPortal = () => {
                       </div>
                       <div className="mt-6 grid gap-6">
                         <div>
+                          <label className="text-sm font-medium text-gray-700">
+                            Select Vehicle (Optional)
+                          </label>
+                          {loadingVehicles ? (
+                            <div className="mt-2 flex items-center gap-2 text-sm text-blue-600">
+                              <Loader className="h-4 w-4 animate-spin" />
+                              <span>Loading your vehicles...</span>
+                            </div>
+                          ) : vehicles.length === 0 ? (
+                            <p className="mt-2 text-sm text-gray-500">
+                              No previously registered vehicles found. Enter
+                              vehicle details below.
+                            </p>
+                          ) : (
+                            <div className="relative mt-2">
+                              <button
+                                ref={vehicleButtonRef}
+                                onClick={() =>
+                                  setVehicleDropdownOpen(!vehicleDropdownOpen)
+                                }
+                                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-left font-medium text-gray-900 transition-all duration-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-between"
+                              >
+                                <span>
+                                  {selectedVehicle
+                                    ? selectedVehicle.vehicleRegistrationNo
+                                    : "Select a vehicle..."}
+                                </span>
+                                <ChevronDown className="h-4 w-4" />
+                              </button>
+
+                              {vehicleDropdownOpen && vehicles.length > 0 && (
+                                <div
+                                  ref={vehicleListRef}
+                                  className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto"
+                                >
+                                  <div className="p-2 sticky top-0 bg-white border-b">
+                                    <input
+                                      type="text"
+                                      placeholder="Search vehicle..."
+                                      value={vehicleSearch}
+                                      onChange={(e) =>
+                                        setVehicleSearch(e.target.value)
+                                      }
+                                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                  </div>
+                                  {vehicles
+                                    .filter((v) =>
+                                      v.vehicleRegistrationNo
+                                        .toLowerCase()
+                                        .includes(vehicleSearch.toLowerCase())
+                                    )
+                                    .map((vehicle) => (
+                                      <button
+                                        key={vehicle.id}
+                                        onClick={async () => {
+                                          setSelectedVehicle(vehicle);
+                                          setVehicleDropdownOpen(false);
+                                          setVehicleSearch("");
+                                          await fetchVehicleData(
+                                            vehicle.vehicleRegistrationNo
+                                          );
+                                        }}
+                                        disabled={loadingVehicleData}
+                                        className="w-full px-4 py-3 text-left text-sm hover:bg-blue-50 transition-colors border-b last:border-b-0"
+                                      >
+                                        {vehicle.vehicleRegistrationNo}
+                                        {vehicle.remark && (
+                                          <span className="text-xs text-gray-500 ml-2">
+                                            ({vehicle.remark})
+                                          </span>
+                                        )}
+                                      </button>
+                                    ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {loadingVehicleData && (
+                            <div className="mt-2 flex items-center gap-2 text-sm text-blue-600">
+                              <Loader className="h-4 w-4 animate-spin" />
+                              <span>Loading vehicle data...</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
                           <label
                             htmlFor="vehicleNumber"
                             className="text-sm font-medium text-gray-700"
@@ -1938,7 +2307,9 @@ const CustomerPortal = () => {
                                       const filtered = languages.filter((l) =>
                                         l.label
                                           .toLowerCase()
-                                          .includes(helperPrefSearch.toLowerCase())
+                                          .includes(
+                                            helperPrefSearch.toLowerCase()
+                                          )
                                       );
                                       setHelperPrefHighlight((prev) =>
                                         Math.min(prev + 1, filtered.length - 1)
@@ -1953,7 +2324,9 @@ const CustomerPortal = () => {
                                       const filtered = languages.filter((l) =>
                                         l.label
                                           .toLowerCase()
-                                          .includes(helperPrefSearch.toLowerCase())
+                                          .includes(
+                                            helperPrefSearch.toLowerCase()
+                                          )
                                       );
                                       if (filtered[helperPrefHighlight]) {
                                         handleInputChange(

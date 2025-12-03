@@ -136,6 +136,33 @@
             },
             "description": "Logout and blacklist refresh token"
           }
+        },
+        {
+          "name": "Get Current User (Validate Token)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/api/auth/user/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "api",
+                "auth",
+                "user",
+                ""
+              ]
+            },
+            "description": "Get current authenticated user and validate token"
+          }
         }
       ]
     },
