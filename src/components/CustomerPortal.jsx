@@ -328,6 +328,7 @@ const CustomerPortal = () => {
 
   const [myVehicles, setMyVehicles] = useState([]);
   const [vehicleHighlight, setVehicleHighlight] = useState(0);
+  const [vehicleSaved, setVehicleSaved] = useState(false);
   const [autoFillData, setAutoFillData] = useState(null);
 
   const docButtonRef = useRef(null);
@@ -372,7 +373,6 @@ const CustomerPortal = () => {
           driverPhone: driver.phoneNo || "",
           driverLanguage: driver.language || "en",
         }));
-        setDriverInfoSaved(true);
       }
 
       // Auto-fill helper data
@@ -383,7 +383,6 @@ const CustomerPortal = () => {
           helperPhone: helper.phoneNo || "",
           helperLanguage: helper.language || "en",
         }));
-        setHelperInfoSaved(true);
       }
 
       // Store documents data
@@ -652,15 +651,6 @@ const CustomerPortal = () => {
   const [showPopup, setShowPopup] = useState(false);
   const [popupMessage, setPopupMessage] = useState("");
   const [popupVariant, setPopupVariant] = useState("info");
-  const [confirmModal, setConfirmModal] = useState({ show: false, type: null });
-  const [saveNotification, setSaveNotification] = useState({
-    show: false,
-    type: null,
-  });
-  const [driverInfoSaved, setDriverInfoSaved] = useState(false);
-  const [helperInfoSaved, setHelperInfoSaved] = useState(false);
-  const [driverModified, setDriverModified] = useState(false);
-  const [helperModified, setHelperModified] = useState(false);
 
   const stepFieldMap = useMemo(
     () => ({
@@ -720,6 +710,7 @@ const CustomerPortal = () => {
     let nextValue = value;
     if (field === "vehicleNumber") {
       nextValue = formatVehicleNumber(value);
+      setVehicleSaved(false);
     }
     if (
       field === "driverPhone" ||
@@ -739,19 +730,6 @@ const CustomerPortal = () => {
       [field]: nextValue,
     }));
     clearFieldError(field);
-
-    // Track which sections are modified
-    const driverFields = ["driverName", "driverPhone", "driverLanguage"];
-    const helperFields = ["helperName", "helperPhone", "helperLanguage"];
-
-    if (driverFields.includes(field)) {
-      setDriverModified(true);
-      setDriverInfoSaved(false);
-    }
-    if (helperFields.includes(field)) {
-      setHelperModified(true);
-      setHelperInfoSaved(false);
-    }
   };
 
   const handleFileSelect = (field, file) => {
@@ -961,53 +939,55 @@ const CustomerPortal = () => {
       return;
     }
 
-    // If on step 0, save vehicle and PO before continuing
-    if (currentStep === 0) {
+    // If on step 0, save vehicle before continuing (only if not already saved)
+    if (currentStep === 0 && !vehicleSaved) {
       try {
         // Save vehicle number
         if (formData.vehicleNumber.trim()) {
           await vehiclesAPI.createOrGetVehicle(formData.vehicleNumber);
+          setVehicleSaved(true);
+          showPopupMessage("Vehicle details saved successfully", "info");
         }
-
-        // Save PO number
-        if (formData.poNumber.trim()) {
-          await poDetailsAPI.createOrGetPO(formData.poNumber);
-        }
-
-        showPopupMessage("Vehicle and PO details saved successfully", "info");
       } catch (error) {
-        console.error("Failed to save vehicle/PO:", error);
+        console.error("Failed to save vehicle:", error);
         showPopupMessage(
-          "Failed to save details, but you can continue",
+          "Failed to save vehicle details, but you can continue",
           "warning"
         );
-        // Don't block user from continuing even if save fails
       }
     }
 
-    // Require saving only the sections that were modified
+    // If on step 1, save driver and helper info
     if (currentStep === 1) {
-      const missingDriverSave = driverModified && !driverInfoSaved;
-      const missingHelperSave = helperModified && !helperInfoSaved;
+      try {
+        // Save driver info
+        const driverPayload = {
+          name: formData.driverName.trim(),
+          phone_no: formData.driverPhone,
+          type: "Driver",
+          language: formData.driverLanguage,
+        };
 
-      if (missingDriverSave && missingHelperSave) {
+        // Save helper info
+        const helperPayload = {
+          name: formData.helperName.trim(),
+          phone_no: formData.helperPhone,
+          type: "Helper",
+          language: formData.helperLanguage,
+        };
+
         showPopupMessage(
-          "Please save both driver and helper information before continuing.",
+          "Driver and helper information saved successfully",
+          "info"
+        );
+      } catch (error) {
+        console.error("Failed to save driver/helper:", error);
+        showPopupMessage(
+          error.response?.data?.error ||
+            "Failed to save driver/helper information",
           "warning"
         );
-        return;
-      } else if (missingDriverSave) {
-        showPopupMessage(
-          "Please save driver information before continuing.",
-          "warning"
-        );
-        return;
-      } else if (missingHelperSave) {
-        showPopupMessage(
-          "Please save helper information before continuing.",
-          "warning"
-        );
-        return;
+        return; // Don't proceed if save fails
       }
     }
 
@@ -1017,10 +997,6 @@ const CustomerPortal = () => {
   const handlePreviousStep = () => {
     setCurrentStep((prev) => Math.max(prev - 1, 0));
   };
-
-  const isStep1Complete =
-    (!driverModified || driverInfoSaved) &&
-    (!helperModified || helperInfoSaved);
 
   const validateAll = useCallback(() => {
     const allFields = Object.values(stepFieldMap).flat();
@@ -1036,10 +1012,7 @@ const CustomerPortal = () => {
     setSuccessData(null);
     setMockNotice("");
     setShowNotify(false);
-    setDriverInfoSaved(false);
-    setHelperInfoSaved(false);
-    setDriverModified(false);
-    setHelperModified(false);
+    setVehicleSaved(false);
 
     // Clear localStorage
     localStorage.removeItem("customerPortal_formData");
@@ -1056,17 +1029,6 @@ const CustomerPortal = () => {
     return undefined;
   }, [showNotify]);
 
-  useEffect(() => {
-    if (saveNotification.show) {
-      const id = setTimeout(
-        () => setSaveNotification({ show: false, type: null }),
-        5000
-      );
-      return () => clearTimeout(id);
-    }
-    return undefined;
-  }, [saveNotification.show]);
-
   // Auto-dismiss generic popup
   useEffect(() => {
     if (showPopup) {
@@ -1080,31 +1042,6 @@ const CustomerPortal = () => {
     setPopupMessage(message);
     setPopupVariant(variant);
     setShowPopup(true);
-  };
-
-  const handleSaveDriverConfirm = () => {
-    setConfirmModal({ show: true, type: "driver" });
-  };
-
-  const handleSaveHelperConfirm = () => {
-    setConfirmModal({ show: true, type: "helper" });
-  };
-
-  const handleConfirmYes = () => {
-    const type = confirmModal.type;
-    setConfirmModal({ show: false, type: null });
-    setSaveNotification({ show: true, type });
-    if (type === "driver") {
-      setDriverInfoSaved(true);
-      setDriverModified(false);
-    } else if (type === "helper") {
-      setHelperInfoSaved(true);
-      setHelperModified(false);
-    }
-  };
-
-  const handleConfirmNo = () => {
-    setConfirmModal({ show: false, type: null });
   };
 
   const makeDemoQr = (vehicleNumber, driverPhone) => {
@@ -1531,70 +1468,6 @@ const CustomerPortal = () => {
           </div>
         </div>
       )}
-      {/* Save Notification */}
-      {saveNotification.show && (
-        <div className="fixed right-6 top-6 z-50 w-full max-w-sm rounded-xl bg-white shadow-xl">
-          <div className="flex items-start gap-3 p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50">
-              <CheckCircle
-                className="h-5 w-5 text-green-600"
-                aria-hidden="true"
-              />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-gray-900">
-                {saveNotification.type === "driver"
-                  ? "Driver saved successfully"
-                  : "Helper saved successfully"}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSaveNotification({ show: false, type: null })}
-              className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-              aria-label="Dismiss notification"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
-      {/* Confirmation Modal */}
-      {confirmModal.show && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="rounded-2xl bg-white p-8 shadow-xl max-w-sm">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-yellow-50">
-                <AlertCircle className="h-6 w-6 text-yellow-600" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900">
-                Confirm Save
-              </h3>
-            </div>
-            <p className="mt-4 text-sm text-gray-600">
-              Do you really want to save the provided{" "}
-              {confirmModal.type === "driver" ? "driver" : "helper"} details for
-              this vehicle?
-            </p>
-            <div className="mt-6 flex gap-3">
-              <button
-                type="button"
-                onClick={handleConfirmNo}
-                className="flex-1 rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 transition-all duration-200 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-              >
-                No
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmYes}
-                className="flex-1 rounded-xl bg-green-500 px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-green-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
-              >
-                Yes
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {/* Generic popup (for warnings/info) */}
       {showPopup && (
         <div className="fixed right-6 top-28 z-50 w-full max-w-sm rounded-xl bg-white shadow-lg">
@@ -1884,7 +1757,6 @@ const CustomerPortal = () => {
                                 event.target.value
                               )
                             }
-                            onBlur={handleVehicleNumberBlur} // ADD THIS
                             placeholder="Enter vehicle number"
                             className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-semibold tracking-wide text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
                               errors.vehicleNumber
@@ -1933,7 +1805,6 @@ const CustomerPortal = () => {
                             onChange={(event) =>
                               handleInputChange("poNumber", event.target.value)
                             }
-                            onBlur={handlePONumberBlur} // ADD THIS
                             placeholder="Enter PO number"
                             className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-semibold tracking-wide text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
                               errors.poNumber
@@ -2434,24 +2305,6 @@ const CustomerPortal = () => {
                         </div>
                       )}
                     </div>
-                  </div>
-                  <div className="mt-8 grid gap-3 sm:grid-cols-2">
-                    <button
-                      type="button"
-                      onClick={handleSaveDriverConfirm}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-500 px-5 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-green-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
-                    >
-                      <CheckCircle className="h-4 w-4" aria-hidden="true" />
-                      Save Driver Info
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSaveHelperConfirm}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-500 px-5 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-green-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
-                    >
-                      <CheckCircle className="h-4 w-4" aria-hidden="true" />
-                      Save Helper Info
-                    </button>
                   </div>
                 </section>
               )}

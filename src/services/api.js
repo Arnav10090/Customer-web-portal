@@ -182,6 +182,8 @@ export const driversAPI = {
 
   createDriver: (data) => api.post("/drivers/", data),
 
+  validateOrCreate: (data) => api.post("/drivers/validate-or-create/", data),
+
   getDriver: (id) => api.get(`/drivers/${id}/`),
 
   updateDriver: (id, data) => api.patch(`/drivers/${id}/`, data),
