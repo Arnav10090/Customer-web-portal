@@ -18,7 +18,12 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { submissionsAPI, documentsAPI, vehiclesAPI, poDetailsAPI } from "../services/api";
+import {
+  submissionsAPI,
+  documentsAPI,
+  vehiclesAPI,
+  poDetailsAPI,
+} from "../services/api";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const ACCEPTED_TYPES = [
@@ -945,7 +950,7 @@ const CustomerPortal = () => {
     [files, formData]
   );
 
-  const handleNextStep = () => {
+  const handleNextStep = async () => {
     // Validate current step fields before moving to next step
     const currentStepFields = stepFieldMap[currentStep];
     if (!validateFields(currentStepFields)) {
@@ -954,6 +959,30 @@ const CustomerPortal = () => {
         "warning"
       );
       return;
+    }
+
+    // If on step 0, save vehicle and PO before continuing
+    if (currentStep === 0) {
+      try {
+        // Save vehicle number
+        if (formData.vehicleNumber.trim()) {
+          await vehiclesAPI.createOrGetVehicle(formData.vehicleNumber);
+        }
+
+        // Save PO number
+        if (formData.poNumber.trim()) {
+          await poDetailsAPI.createOrGetPO(formData.poNumber);
+        }
+
+        showPopupMessage("Vehicle and PO details saved successfully", "info");
+      } catch (error) {
+        console.error("Failed to save vehicle/PO:", error);
+        showPopupMessage(
+          "Failed to save details, but you can continue",
+          "warning"
+        );
+        // Don't block user from continuing even if save fails
+      }
     }
 
     // Require saving only the sections that were modified
@@ -981,6 +1010,7 @@ const CustomerPortal = () => {
         return;
       }
     }
+
     setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
   };
 
@@ -1854,6 +1884,7 @@ const CustomerPortal = () => {
                                 event.target.value
                               )
                             }
+                            onBlur={handleVehicleNumberBlur} // ADD THIS
                             placeholder="Enter vehicle number"
                             className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-semibold tracking-wide text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
                               errors.vehicleNumber
@@ -1862,6 +1893,7 @@ const CustomerPortal = () => {
                             }`}
                             autoComplete="off"
                           />
+
                           {errors.vehicleNumber && (
                             <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
                               <AlertCircle
@@ -1901,6 +1933,7 @@ const CustomerPortal = () => {
                             onChange={(event) =>
                               handleInputChange("poNumber", event.target.value)
                             }
+                            onBlur={handlePONumberBlur} // ADD THIS
                             placeholder="Enter PO number"
                             className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-semibold tracking-wide text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
                               errors.poNumber

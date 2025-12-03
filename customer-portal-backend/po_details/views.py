@@ -31,13 +31,26 @@ class PODetailsViewSet(viewsets.ModelViewSet):
         
         po_number = serializer.validated_data['po_number'].strip().upper()
         
-        # Get or create PO
+        # Get or create PO - ALWAYS associate with current user
         po, created = PODetails.objects.get_or_create(
             id=po_number,
             defaults={
                 'customerUserId': request.user
             }
         )
+        
+        # If PO exists but has no customer, assign current user
+        if not created and not po.customerUserId:
+            po.customerUserId = request.user
+            po.save()
+        
+        # If PO exists and belongs to a different customer, create error message
+        if not created and po.customerUserId != request.user:
+            return Response({
+                "error": f"PO {po_number} is already associated with another customer",
+                "po": None,
+                "created": False
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         return Response({
             "po": PODetailsSerializer(po).data,

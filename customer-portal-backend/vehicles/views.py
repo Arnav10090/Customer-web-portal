@@ -51,6 +51,13 @@ class VehicleViewSet(viewsets.ModelViewSet):
             "vehicle_number": "MH12AB1234"
         }
         """
+        # Debugging
+        print("=" * 50)
+        print(f"User authenticated: {request.user.is_authenticated}")
+        print(f"User ID: {request.user.id if request.user.is_authenticated else 'None'}")
+        print(f"User email: {request.user.email if request.user.is_authenticated else 'None'}")
+        print("=" * 50)
+
         vehicle_number = request.data.get('vehicle_number', '').strip().upper()
         
         if not vehicle_number:
