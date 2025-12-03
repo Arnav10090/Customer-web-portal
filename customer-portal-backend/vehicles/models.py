@@ -6,7 +6,7 @@ class VehicleDetails(models.Model):
     Vehicle registration and tracking information
     """
     
-    vehicle_registration_no = models.CharField(
+    vehicleRegistrationNo = models.CharField(
         max_length=50,
         unique=True,
         validators=[
@@ -16,10 +16,9 @@ class VehicleDetails(models.Model):
             )
         ]
     )
-    remark = models.TextField(blank=True, null=True)
+    remark = models.CharField(max_length=500, blank=True, null=True)
     ratings = models.IntegerField(default=0, blank=True, null=True)
     created = models.DateTimeField(auto_now_add=True)
-    updated = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'VehicleDetails'

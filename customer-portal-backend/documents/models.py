@@ -18,9 +18,30 @@ DOCUMENT_TYPES = (
     ('after_weighing', 'After Weighing Receipt'),
 )
 
+class DocumentControl(models.Model):
+    """
+    Document storage (TTMS DocumentControl table)
+    """
+    name = models.CharField(max_length=255, null=True, blank=True)
+    type = models.CharField(max_length=50, choices=DOCUMENT_TYPES)
+    referenceId = models.IntegerField(null=True, blank=True)  # Can reference VehicleDetails, DriverHelper, or PODetails
+    filePath = models.CharField(max_length=500)
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'DocumentControl'
+        verbose_name = 'Document'
+        verbose_name_plural = 'Documents'
+        ordering = ['-created']
+
+    def __str__(self):
+        return f"{self.name} - {self.get_type_display()}"
+
+
+# Keep CustomerDocument for backward compatibility with existing API
 class CustomerDocument(models.Model):
     """
-    Customer document uploads with file path stored in database
+    Customer document uploads (Legacy - for API compatibility)
     Files are stored in local computer/server storage
     """
     customer_email = models.EmailField(db_index=True)

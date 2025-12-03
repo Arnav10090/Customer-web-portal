@@ -17,12 +17,12 @@ LANGUAGE_CHOICES = (
 
 class DriverHelper(models.Model):
     """
-    Driver and Helper information with unique phone validation
+    Driver and Helper information (TTMS DriverHelper table)
     """
     name = models.CharField(max_length=100)
     type = models.CharField(max_length=10, choices=DRIVER_TYPES)
-    phone_no = models.CharField(
-        max_length=15,
+    phoneNo = models.CharField(
+        max_length=20,
         unique=True,
         validators=[
             RegexValidator(
@@ -32,10 +32,9 @@ class DriverHelper(models.Model):
         ]
     )
     language = models.CharField(max_length=5, choices=LANGUAGE_CHOICES, default='en')
-    is_blacklisted = models.BooleanField(default=False)
+    isBlacklisted = models.BooleanField(default=False)
     rating = models.IntegerField(default=0, blank=True, null=True)
     created = models.DateTimeField(auto_now_add=True)
-    updated = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'DriverHelper'
@@ -43,7 +42,7 @@ class DriverHelper(models.Model):
         verbose_name_plural = 'Drivers/Helpers'
         ordering = ['-created']
         indexes = [
-            models.Index(fields=['phone_no']),
+            models.Index(fields=['phoneNo']),
             models.Index(fields=['type']),
         ]
 
