@@ -192,12 +192,15 @@ class VehicleViewSet(viewsets.ModelViewSet):
         
         # Get the most recent submission for auto-fill
         from submissions.models import GateEntrySubmission
+        from podrivervehicletagging.models import PODriverVehicleTagging, DriverVehicleTagging
+        
         latest_submission = GateEntrySubmission.objects.filter(
             vehicle=vehicle
         ).select_related('driver', 'helper').order_by('-created_at').first()
         
         driver_data = None
         helper_data = None
+        po_number = None  # ADD THIS
         
         if latest_submission:
             if latest_submission.driver:
@@ -217,6 +220,23 @@ class VehicleViewSet(viewsets.ModelViewSet):
                     "language": latest_submission.helper.language,
                     "type": latest_submission.helper.type
                 }
+            
+            # ADD THIS SECTION TO GET PO NUMBER
+            try:
+                driver_vehicle_tagging = DriverVehicleTagging.objects.filter(
+                    vehicleId=vehicle,
+                    driverId=latest_submission.driver
+                ).order_by('-created').first()
+                
+                if driver_vehicle_tagging:
+                    po_tagging = PODriverVehicleTagging.objects.filter(
+                        driverVehicleTaggingId=driver_vehicle_tagging
+                    ).select_related('poId').order_by('-created').first()
+                    
+                    if po_tagging and po_tagging.poId:
+                        po_number = po_tagging.poId.id
+            except Exception as e:
+                print(f"Could not fetch PO number: {e}")
         
         # Get documents from DocumentControl
         documents = DocumentControl.objects.filter(
@@ -228,6 +248,7 @@ class VehicleViewSet(viewsets.ModelViewSet):
             "vehicle": VehicleDetailsSerializer(vehicle).data,
             "driver": driver_data,
             "helper": helper_data,
+            "po_number": po_number,  # ADD THIS
             "documents": DocumentControlSerializer(documents, many=True).data
         })
 
