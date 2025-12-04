@@ -396,7 +396,6 @@ const CustomerPortal = () => {
 
   // Handle vehicle selection from dropdown
 const handleVehicleSelect = async (vehicleNumber) => {
-  setFormData((prev) => ({ ...prev, vehicleNumber }));
   setVehicleDropdownOpen(false);
   setVehicleSearch("");
   setLoadingVehicleData(true);
@@ -408,36 +407,38 @@ const handleVehicleSelect = async (vehicleNumber) => {
 
     console.log("Vehicle data fetched:", response.data); // Debug log
 
+    // Prepare updates object
+    const updates = {
+      vehicleNumber: vehicleNumber,
+    };
+
     // Auto-fill PO number if available
     if (po_number) {
-      setFormData((prev) => ({
-        ...prev,
-        poNumber: po_number,
-      }));
+      updates.poNumber = po_number;
       showPopupMessage(`PO Number auto-filled: ${po_number}`, "info");
     }
 
     // Auto-fill driver data if available
     if (driver) {
-      setFormData((prev) => ({
-        ...prev,
-        driverName: driver.name || "",
-        driverPhone: driver.phoneNo || "",
-        driverLanguage: driver.language || "en",
-      }));
+      updates.driverName = driver.name || "";
+      updates.driverPhone = driver.phoneNo || "";
+      updates.driverLanguage = driver.language || "en";
       showPopupMessage(`Driver info auto-filled: ${driver.name}`, "info");
     }
 
     // Auto-fill helper data if available
     if (helper) {
-      setFormData((prev) => ({
-        ...prev,
-        helperName: helper.name || "",
-        helperPhone: helper.phoneNo || "",
-        helperLanguage: helper.language || "en",
-      }));
+      updates.helperName = helper.name || "";
+      updates.helperPhone = helper.phoneNo || "";
+      updates.helperLanguage = helper.language || "en";
       showPopupMessage(`Helper info auto-filled: ${helper.name}`, "info");
     }
+
+    // Apply all updates at once
+    setFormData((prev) => ({
+      ...prev,
+      ...updates,
+    }));
 
     // Process and display documents
     if (documents && documents.length > 0) {
@@ -576,50 +577,104 @@ const handleVehicleSelect = async (vehicleNumber) => {
     }
   }, [user?.id]); // Only trigger on user change, not on every render
 
-  // Fetch complete data for selected vehicle
-  const fetchVehicleData = async (vehicleRegNo) => {
-    try {
-      setLoadingVehicleData(true);
-      const response = await vehiclesAPI.getVehicleCompleteData(vehicleRegNo);
-      setVehicleData(response.data);
+  // Replace your existing fetchVehicleData and autofillFormData with this:
 
-      // Auto-fill form data with fetched data
-      autofillFormData(response.data);
-    } catch (error) {
-      console.error("Failed to fetch vehicle data:", error);
-      setVehicleData(null);
-    } finally {
-      setLoadingVehicleData(false);
-    }
-  };
+// Fetch complete data for selected vehicle
+const fetchVehicleData = async (vehicleRegNo) => {
+  try {
+    setLoadingVehicleData(true);
+    const response = await vehiclesAPI.getVehicleCompleteData(vehicleRegNo);
+    const data = response.data || {};
 
-  // Auto-fill form fields from fetched vehicle data
-  const autofillFormData = (data) => {
-    const updates = {
-      vehicleNumber: data.vehicle.vehicleRegistrationNo,
+    // Save raw vehicleData for UI (used elsewhere)
+    setVehicleData(data);
+
+    // Auto-fill form data with fetched data (robust to response shapes)
+    autofillFormData(data);
+
+    // Also store autoFillData for documents / notifications
+    const auto = {
+      // tolerate either snake_case and camelCase, use fallback empty arrays/objects
+      driver: data.driver || (Array.isArray(data.drivers) && data.drivers[0]) || null,
+      helper: data.helper || (Array.isArray(data.helpers) && data.helpers[0]) || null,
+      po_number: data.po_number || data.poNumber || "",
+      documents: data.documents || data.document_list || [],
     };
+    setAutoFillData(auto);
+  } catch (error) {
+    console.error("Failed to fetch vehicle data:", error);
+    setVehicleData(null);
+    setAutoFillData(null);
+  } finally {
+    setLoadingVehicleData(false);
+  }
+};
 
-    // Auto-fill driver info if available
-    if (data.drivers && data.drivers.length > 0) {
-      const driver = data.drivers[0];
-      updates.driverName = driver.name;
-      updates.driverPhone = driver.phoneNo;
-      updates.driverLanguage = driver.language;
-    }
+// Auto-fill form fields from fetched vehicle data
+const autofillFormData = (data) => {
+  if (!data) return;
 
-    // Auto-fill helper info if available
-    if (data.helpers && data.helpers.length > 0) {
-      const helper = data.helpers[0];
-      updates.helperName = helper.name;
-      updates.helperPhone = helper.phoneNo;
-      updates.helperLanguage = helper.language;
-    }
+  // Normalize fields (tolerate different shapes)
+  const vehicleReg =
+    (data.vehicle && data.vehicle.vehicleRegistrationNo) ||
+    data.vehicleRegistrationNo ||
+    "";
 
-    setFormData((prev) => ({
-      ...prev,
-      ...updates,
-    }));
+  const driver =
+    data.driver || (Array.isArray(data.drivers) && data.drivers[0]) || null;
+
+  const helper =
+    data.helper || (Array.isArray(data.helpers) && data.helpers[0]) || null;
+
+  const poNumber = data.po_number || data.poNumber || "";
+
+  // Build updates to state
+  const updates = {
+    ...(vehicleReg ? { vehicleNumber: vehicleReg } : {}),
+    ...(poNumber ? { poNumber: String(poNumber) } : {}),
   };
+
+  if (driver) {
+    updates.driverName = driver.name || driver.driverName || "";
+    updates.driverPhone = driver.phoneNo || driver.driver_phone || "";
+    updates.driverLanguage = driver.language || driver.lang || "en";
+  }
+
+  if (helper) {
+    updates.helperName = helper.name || helper.helperName || "";
+    updates.helperPhone = helper.phoneNo || helper.helper_phone || "";
+    updates.helperLanguage = helper.language || helper.lang || "en";
+  }
+
+  // Apply updates in a single state update
+  setFormData((prev) => ({
+    ...prev,
+    ...updates,
+  }));
+
+  // Decide what popup to show:
+  // If user is on Step 0, show only the PO message (if present).
+  // Otherwise show combined info (or nothing if nothing to show).
+  if (currentStep === 0) {
+    if (poNumber) {
+      showPopupMessage(`PO Number auto-filled: ${poNumber}`, "info");
+    } else {
+      // optionally show nothing (keeps UI quiet). If you want fallback message, uncomment:
+      // showPopupMessage("No PO number found for this vehicle", "info");
+    }
+    return; // don't show driver/helper messages when we're in step 0
+  }
+
+  // Not step 0: show a combined message (driver/helper/po)
+  const parts = [];
+  if (poNumber) parts.push(`PO: ${poNumber}`);
+  if (driver && driver.name) parts.push(`Driver: ${driver.name}`);
+  if (helper && helper.name) parts.push(`Helper: ${helper.name}`);
+
+  if (parts.length > 0) {
+    showPopupMessage(`Auto-filled — ${parts.join(" · ")}`, "info");
+  }
+};
 
   // Save formData to localStorage whenever it changes
   useEffect(() => {
