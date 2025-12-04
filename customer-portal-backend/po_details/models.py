@@ -10,9 +10,10 @@ class PODetails(models.Model):
     dapName = models.ForeignKey(
         Zone,
         on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        to_field='id'
+        null=True,  # Already set
+        blank=True,  # Already set
+        to_field='id',
+        db_column='dapName'
     )
     customerUserId = models.ForeignKey(
         settings.AUTH_USER_MODEL,

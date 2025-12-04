@@ -1186,22 +1186,30 @@ const CustomerPortal = () => {
   }, [stepFieldMap, validateFields]);
 
   const resetForm = () => {
-    setFormData(initialFormData);
-    setFiles(initialFiles);
-    setErrors({});
-    setSubmitError("");
-    setCurrentStep(0);
-    setSuccessData(null);
-    setMockNotice("");
-    setShowNotify(false);
-    setVehicleSaved(false);
-    setSavedDriverHelperData(null);
+  // Preserve customer email and phone from logged-in user
+  const customerEmail = user?.email || "";
+  const customerPhone = user?.phone || user?.telephone || "";
 
-    // Clear localStorage
-    localStorage.removeItem("customerPortal_formData");
-    localStorage.removeItem("customerPortal_files");
-    localStorage.removeItem("customerPortal_currentStep");
-  };
+  setFormData({
+    ...initialFormData,
+    customerEmail,  // Keep customer email
+    customerPhone,  // Keep customer phone
+  });
+  setFiles(initialFiles);
+  setErrors({});
+  setSubmitError("");
+  setCurrentStep(0);
+  setSuccessData(null);
+  setMockNotice("");
+  setShowNotify(false);
+  setVehicleSaved(false);
+  setSavedDriverHelperData(null);
+
+  // Clear localStorage
+  localStorage.removeItem("customerPortal_formData");
+  localStorage.removeItem("customerPortal_files");
+  localStorage.removeItem("customerPortal_currentStep");
+};
 
   // Auto-dismiss notification when shown
   useEffect(() => {

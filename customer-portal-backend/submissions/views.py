@@ -125,13 +125,13 @@ class GateEntrySubmissionViewSet(viewsets.ModelViewSet):
                 # (Optional: You can create relationships here if required)
 
                 # 11. Create audit log
-                AuditLog.objects.create(
-                    submission=submission,
-                    action='SUBMISSION_CREATED',
-                    description=f'Gate entry submission created for vehicle {vehicle.vehicleRegistrationNo}',
-                    user_email=customer_email,
-                    ip_address=self.get_client_ip(request)
-                )
+                # AuditLog.objects.create(
+                #     submission=submission,
+                #     action='SUBMISSION_CREATED',
+                #     description=f'Gate entry submission created for vehicle {vehicle.vehicleRegistrationNo}',
+                #     user_email=customer_email,
+                #     ip_address=self.get_client_ip(request)
+                # )
 
                 # 12. Send email notification
                 self.send_qr_email(submission)
@@ -181,7 +181,7 @@ Please present this QR code at the gate entrance.
 
 Best regards,
 Gate Entry System
-            """
+        """
 
             email = EmailMessage(
                 subject=subject,
@@ -196,22 +196,23 @@ Gate Entry System
 
             email.send(fail_silently=False)
 
-            # Log email sent
-            AuditLog.objects.create(
-                submission=submission,
-                action='EMAIL_SENT',
-                description=f'QR code email sent to {submission.customer_email}',
-                user_email=submission.customer_email
-            )
+            # Log email sent - COMMENTED OUT
+            # AuditLog.objects.create(
+            #     submission=submission,
+            #     action='EMAIL_SENT',
+            #     description=f'QR code email sent to {submission.customer_email}',
+            #     user_email=submission.customer_email
+            # )
 
         except Exception as e:
-            # Log error but don't fail the submission
-            AuditLog.objects.create(
-                submission=submission,
-                action='EMAIL_FAILED',
-                description=f'Failed to send email: {str(e)}',
-                user_email=submission.customer_email
-            )
+            # Log error but don't fail the submission - COMMENTED OUT
+            # AuditLog.objects.create(
+            #     submission=submission,
+            #     action='EMAIL_FAILED',
+            #     description=f'Failed to send email: {str(e)}',
+            #     user_email=submission.customer_email
+            # )
+            pass
 
     def send_qr_sms(self, submission):
         """
@@ -219,30 +220,29 @@ Gate Entry System
         """
         try:
             # Placeholder for SMS integration
-            # In production, integrate with SMS provider (Twilio, AWS SNS, etc.)
-            
             message = f"Gate Entry QR Code generated for vehicle {submission.vehicle.vehicleRegistrationNo}. " \
                       f"Check your email for details."
             
             # TODO: Implement actual SMS sending
             # sms_service.send(to=submission.customer_phone, message=message)
 
-            # Log SMS attempt
-            AuditLog.objects.create(
-                submission=submission,
-                action='SMS_QUEUED',
-                description=f'SMS queued for {submission.customer_phone}',
-                user_email=submission.customer_email
-            )
+            # Log SMS attempt - COMMENTED OUT
+            # AuditLog.objects.create(
+            #     submission=submission,
+            #     action='SMS_QUEUED',
+            #     description=f'SMS queued for {submission.customer_phone}',
+            #     user_email=submission.customer_email
+            # )
 
         except Exception as e:
-            # Log error
-            AuditLog.objects.create(
-                submission=submission,
-                action='SMS_FAILED',
-                description=f'Failed to send SMS: {str(e)}',
-                user_email=submission.customer_email
-            )
+            # Log error - COMMENTED OUT
+            # AuditLog.objects.create(
+            #     submission=submission,
+            #     action='SMS_FAILED',
+            #     description=f'Failed to send SMS: {str(e)}',
+            #     user_email=submission.customer_email
+            # )
+            pass
 
     def get_client_ip(self, request):
         """
