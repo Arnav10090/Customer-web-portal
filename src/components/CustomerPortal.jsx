@@ -398,13 +398,24 @@ const CustomerPortal = () => {
   const handleVehicleSelect = async (vehicleNumber) => {
     setFormData((prev) => ({ ...prev, vehicleNumber }));
     setVehicleDropdownOpen(false);
+    setVehicleSearch("");
+    setLoadingVehicleData(true);
 
-    // Trigger auto-fill
     try {
+      // Fetch complete vehicle data including driver, helper, PO, documents
       const response = await vehiclesAPI.createOrGetVehicle(vehicleNumber);
-      const { driver, helper, documents } = response.data;
+      const { driver, helper, po_number, documents } = response.data;
 
-      // Auto-fill driver data
+      // Auto-fill PO number if available
+      if (po_number) {
+        setFormData((prev) => ({
+          ...prev,
+          poNumber: po_number,
+        }));
+        showPopupMessage(`PO Number auto-filled: ${po_number}`, "info");
+      }
+
+      // Auto-fill driver data if available
       if (driver) {
         setFormData((prev) => ({
           ...prev,
@@ -412,9 +423,10 @@ const CustomerPortal = () => {
           driverPhone: driver.phoneNo || "",
           driverLanguage: driver.language || "en",
         }));
+        showPopupMessage(`Driver info auto-filled: ${driver.name}`, "info");
       }
 
-      // Auto-fill helper data
+      // Auto-fill helper data if available
       if (helper) {
         setFormData((prev) => ({
           ...prev,
@@ -422,15 +434,36 @@ const CustomerPortal = () => {
           helperPhone: helper.phoneNo || "",
           helperLanguage: helper.language || "en",
         }));
+        showPopupMessage(`Helper info auto-filled: ${helper.name}`, "info");
       }
 
-      // Store documents data
-      setAutoFillData({ driver, helper, documents });
+      // Show which documents are already uploaded
+      if (documents && documents.length > 0) {
+        const docList = documents
+          .map((d) => d.type_display || d.type)
+          .join(", ");
+        showPopupMessage(`Documents found: ${docList}`, "info");
 
-      showPopupMessage("Vehicle data loaded successfully", "info");
+        // Mark these documents as already uploaded
+        setAutoFillData({ driver, helper, po_number, documents });
+      } else {
+        setAutoFillData({ driver, helper, po_number, documents: [] });
+      }
+
+      if (!driver && !helper && !po_number) {
+        showPopupMessage(
+          "No previous data found. Please enter manually.",
+          "info"
+        );
+      }
     } catch (error) {
       console.error("Failed to load vehicle data:", error);
-      showPopupMessage("Failed to load vehicle data", "warning");
+      showPopupMessage(
+        "Could not load vehicle history. Please enter details manually.",
+        "warning"
+      );
+    } finally {
+      setLoadingVehicleData(false);
     }
   };
 
@@ -637,6 +670,24 @@ const CustomerPortal = () => {
     }
     return () => document.removeEventListener("click", onHelperPrefClickAway);
   }, [helperPrefDropdownOpen]);
+
+  useEffect(() => {
+    const onVehicleClickAway = (e) => {
+      if (!vehicleButtonRef.current) return;
+      if (vehicleButtonRef.current.contains(e.target)) return;
+      if (
+        vehicleListRef.current &&
+        vehicleListRef.current.contains &&
+        vehicleListRef.current.contains(e.target)
+      )
+        return;
+      setVehicleDropdownOpen(false);
+    };
+    if (vehicleDropdownOpen) {
+      document.addEventListener("click", onVehicleClickAway);
+    }
+    return () => document.removeEventListener("click", onVehicleClickAway);
+  }, [vehicleDropdownOpen]);
 
   // Track changes to driver/helper fields to reset saved data
   useEffect(() => {
@@ -1186,30 +1237,30 @@ const CustomerPortal = () => {
   }, [stepFieldMap, validateFields]);
 
   const resetForm = () => {
-  // Preserve customer email and phone from logged-in user
-  const customerEmail = user?.email || "";
-  const customerPhone = user?.phone || user?.telephone || "";
+    // Preserve customer email and phone from logged-in user
+    const customerEmail = user?.email || "";
+    const customerPhone = user?.phone || user?.telephone || "";
 
-  setFormData({
-    ...initialFormData,
-    customerEmail,  // Keep customer email
-    customerPhone,  // Keep customer phone
-  });
-  setFiles(initialFiles);
-  setErrors({});
-  setSubmitError("");
-  setCurrentStep(0);
-  setSuccessData(null);
-  setMockNotice("");
-  setShowNotify(false);
-  setVehicleSaved(false);
-  setSavedDriverHelperData(null);
+    setFormData({
+      ...initialFormData,
+      customerEmail, // Keep customer email
+      customerPhone, // Keep customer phone
+    });
+    setFiles(initialFiles);
+    setErrors({});
+    setSubmitError("");
+    setCurrentStep(0);
+    setSuccessData(null);
+    setMockNotice("");
+    setShowNotify(false);
+    setVehicleSaved(false);
+    setSavedDriverHelperData(null);
 
-  // Clear localStorage
-  localStorage.removeItem("customerPortal_formData");
-  localStorage.removeItem("customerPortal_files");
-  localStorage.removeItem("customerPortal_currentStep");
-};
+    // Clear localStorage
+    localStorage.removeItem("customerPortal_formData");
+    localStorage.removeItem("customerPortal_files");
+    localStorage.removeItem("customerPortal_currentStep");
+  };
 
   // Auto-dismiss notification when shown
   useEffect(() => {
@@ -1831,10 +1882,12 @@ const CustomerPortal = () => {
                           ) : (
                             <div className="relative mt-2">
                               <button
+                                type="button"
                                 ref={vehicleButtonRef}
-                                onClick={() =>
-                                  setVehicleDropdownOpen(!vehicleDropdownOpen)
-                                }
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setVehicleDropdownOpen(!vehicleDropdownOpen);
+                                }}
                                 className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-left font-medium text-gray-900 transition-all duration-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-between"
                               >
                                 <span>
@@ -1869,8 +1922,10 @@ const CustomerPortal = () => {
                                     )
                                     .map((vehicle) => (
                                       <button
+                                        type="button"
                                         key={vehicle.id}
-                                        onClick={async () => {
+                                        onClick={async (e) => {
+                                          e.preventDefault();
                                           setSelectedVehicle(vehicle);
                                           setVehicleDropdownOpen(false);
                                           setVehicleSearch("");
@@ -1993,647 +2048,691 @@ const CustomerPortal = () => {
               )}
 
               {currentStep === 1 && (
-                <section className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
-                  <div className="flex items-center gap-3">
-                    <Phone
-                      className="h-5 w-5 text-blue-600"
-                      aria-hidden="true"
-                    />
-                    <h2 className="text-lg font-semibold text-gray-800">
-                      Driver Information
-                    </h2>
-                  </div>
-                  <div className="mt-6 grid gap-6 lg:grid-cols-2">
-                    {/* Row 1: Names */}
-                    <div>
-                      <label
-                        htmlFor="driverName"
-                        className="text-sm font-medium text-gray-700"
-                      >
-                        Driver name<span className="text-red-500"> *</span>
-                      </label>
-                      <input
-                        id="driverName"
-                        name="driverName"
-                        type="text"
-                        value={formData.driverName}
-                        onChange={(e) =>
-                          handleInputChange("driverName", e.target.value)
-                        }
-                        placeholder="Driver name"
-                        className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                          errors.driverName
-                            ? "border-red-400 bg-red-50"
-                            : "border-gray-300 bg-white"
-                        }`}
-                        autoComplete="name"
-                      />
-                      {errors.driverName && (
-                        <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
-                          <AlertCircle className="h-4 w-4" aria-hidden="true" />
-                          <span>{errors.driverName}</span>
-                        </div>
-                      )}
+                <>
+                  {/* Auto-fill notification banner */}
+                  {loadingVehicleData && (
+                    <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                      <Loader className="h-5 w-5 animate-spin" />
+                      <span>Loading vehicle history for auto-fill...</span>
                     </div>
-                    <div>
-                      <label
-                        htmlFor="helperName"
-                        className="text-sm font-medium text-gray-700"
-                      >
-                        Helper name<span className="text-red-500"> *</span>
-                      </label>
-                      <input
-                        id="helperName"
-                        name="helperName"
-                        type="text"
-                        value={formData.helperName}
-                        onChange={(e) =>
-                          handleInputChange("helperName", e.target.value)
-                        }
-                        placeholder="Helper name"
-                        className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                          errors.helperName
-                            ? "border-red-400 bg-red-50"
-                            : "border-gray-300 bg-white"
-                        }`}
-                        autoComplete="name"
-                      />
-                      {errors.helperName && (
-                        <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
-                          <AlertCircle className="h-4 w-4" aria-hidden="true" />
-                          <span>{errors.helperName}</span>
-                        </div>
-                      )}
-                    </div>
+                  )}
 
-                    {/* Row 2: Phones */}
-                    <div>
-                      <label
-                        htmlFor="driverPhone"
-                        className="text-sm font-medium text-gray-700"
-                      >
-                        Driver Phone no.<span className="text-red-500"> *</span>
-                      </label>
-                      <input
-                        id="driverPhone"
-                        name="driverPhone"
-                        type="tel"
-                        inputMode="numeric"
-                        value={formData.driverPhone}
-                        onChange={(e) =>
-                          handleInputChange("driverPhone", e.target.value)
-                        }
-                        placeholder="+91XXXXXXXXXX"
-                        className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                          errors.driverPhone
-                            ? "border-red-400 bg-red-50"
-                            : "border-gray-300 bg-white"
-                        }`}
-                      />
-                      {errors.driverPhone && (
-                        <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
-                          <AlertCircle className="h-4 w-4" aria-hidden="true" />
-                          <span>{errors.driverPhone}</span>
-                        </div>
-                      )}
+                  {autoFillData && autoFillData.po_number && (
+                    <div className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                      <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+                      <div>
+                        <p className="font-semibold">
+                          Auto-filled from previous submission:
+                        </p>
+                        <ul className="mt-1 list-disc list-inside">
+                          <li>PO Number: {autoFillData.po_number}</li>
+                          {autoFillData.driver && (
+                            <li>Driver: {autoFillData.driver.name}</li>
+                          )}
+                          {autoFillData.helper && (
+                            <li>Helper: {autoFillData.helper.name}</li>
+                          )}
+                        </ul>
+                        <p className="mt-2 text-xs">
+                          You can update any field if needed.
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <label
-                        htmlFor="helperPhone"
-                        className="text-sm font-medium text-gray-700"
-                      >
-                        Helper Phone no.<span className="text-red-500"> *</span>
-                      </label>
-                      <input
-                        id="helperPhone"
-                        name="helperPhone"
-                        type="tel"
-                        inputMode="numeric"
-                        value={formData.helperPhone}
-                        onChange={(e) =>
-                          handleInputChange("helperPhone", e.target.value)
-                        }
-                        placeholder="+91XXXXXXXXXX"
-                        className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                          errors.helperPhone
-                            ? "border-red-400 bg-red-50"
-                            : "border-gray-300 bg-white"
-                        }`}
+                  )}
+                  <section className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
+                    <div className="flex items-center gap-3">
+                      <Phone
+                        className="h-5 w-5 text-blue-600"
+                        aria-hidden="true"
                       />
-                      {errors.helperPhone && (
-                        <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
-                          <AlertCircle className="h-4 w-4" aria-hidden="true" />
-                          <span>{errors.helperPhone}</span>
-                        </div>
-                      )}
+                      <h2 className="text-lg font-semibold text-gray-800">
+                        Driver Information
+                      </h2>
                     </div>
-
-                    {/* Row 3: Languages */}
-                    <div>
-                      <label
-                        htmlFor="driverLanguage"
-                        className="text-sm font-medium text-gray-700"
-                      >
-                        Driver Language<span className="text-red-500"> *</span>
-                      </label>
-                      <div className="relative mt-2">
-                        <Globe
-                          className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400"
-                          aria-hidden="true"
+                    <div className="mt-6 grid gap-6 lg:grid-cols-2">
+                      {/* Row 1: Names */}
+                      <div>
+                        <label
+                          htmlFor="driverName"
+                          className="text-sm font-medium text-gray-700"
+                        >
+                          Driver name<span className="text-red-500"> *</span>
+                        </label>
+                        <input
+                          id="driverName"
+                          name="driverName"
+                          type="text"
+                          value={formData.driverName}
+                          onChange={(e) =>
+                            handleInputChange("driverName", e.target.value)
+                          }
+                          placeholder="Driver name"
+                          className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                            errors.driverName
+                              ? "border-red-400 bg-red-50"
+                              : "border-gray-300 bg-white"
+                          }`}
+                          autoComplete="name"
                         />
-                        <div className="relative max-w-md">
-                          <button
-                            ref={prefButtonRef}
-                            type="button"
-                            aria-haspopup="listbox"
-                            aria-expanded={prefDropdownOpen}
-                            onClick={() => {
-                              setPrefDropdownOpen((s) => !s);
-                              setPrefHighlight(
-                                languages.findIndex(
-                                  (l) => l.value === formData.driverLanguage
-                                )
-                              );
-                            }}
-                            className={`w-full rounded-xl border ${
-                              errors.driverLanguage
-                                ? "border-red-400 bg-red-50"
-                                : "border-gray-300"
-                            } bg-white px-4 py-3 text-left text-sm font-medium text-gray-900 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <Globe className="h-4 w-4 text-gray-400" />
-                              <span>
-                                {
-                                  languages.find(
+                        {errors.driverName && (
+                          <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
+                            <AlertCircle
+                              className="h-4 w-4"
+                              aria-hidden="true"
+                            />
+                            <span>{errors.driverName}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="helperName"
+                          className="text-sm font-medium text-gray-700"
+                        >
+                          Helper name<span className="text-red-500"> *</span>
+                        </label>
+                        <input
+                          id="helperName"
+                          name="helperName"
+                          type="text"
+                          value={formData.helperName}
+                          onChange={(e) =>
+                            handleInputChange("helperName", e.target.value)
+                          }
+                          placeholder="Helper name"
+                          className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                            errors.helperName
+                              ? "border-red-400 bg-red-50"
+                              : "border-gray-300 bg-white"
+                          }`}
+                          autoComplete="name"
+                        />
+                        {errors.helperName && (
+                          <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
+                            <AlertCircle
+                              className="h-4 w-4"
+                              aria-hidden="true"
+                            />
+                            <span>{errors.helperName}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Row 2: Phones */}
+                      <div>
+                        <label
+                          htmlFor="driverPhone"
+                          className="text-sm font-medium text-gray-700"
+                        >
+                          Driver Phone no.
+                          <span className="text-red-500"> *</span>
+                        </label>
+                        <input
+                          id="driverPhone"
+                          name="driverPhone"
+                          type="tel"
+                          inputMode="numeric"
+                          value={formData.driverPhone}
+                          onChange={(e) =>
+                            handleInputChange("driverPhone", e.target.value)
+                          }
+                          placeholder="+91XXXXXXXXXX"
+                          className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                            errors.driverPhone
+                              ? "border-red-400 bg-red-50"
+                              : "border-gray-300 bg-white"
+                          }`}
+                        />
+                        {errors.driverPhone && (
+                          <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
+                            <AlertCircle
+                              className="h-4 w-4"
+                              aria-hidden="true"
+                            />
+                            <span>{errors.driverPhone}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="helperPhone"
+                          className="text-sm font-medium text-gray-700"
+                        >
+                          Helper Phone no.
+                          <span className="text-red-500"> *</span>
+                        </label>
+                        <input
+                          id="helperPhone"
+                          name="helperPhone"
+                          type="tel"
+                          inputMode="numeric"
+                          value={formData.helperPhone}
+                          onChange={(e) =>
+                            handleInputChange("helperPhone", e.target.value)
+                          }
+                          placeholder="+91XXXXXXXXXX"
+                          className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                            errors.helperPhone
+                              ? "border-red-400 bg-red-50"
+                              : "border-gray-300 bg-white"
+                          }`}
+                        />
+                        {errors.helperPhone && (
+                          <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
+                            <AlertCircle
+                              className="h-4 w-4"
+                              aria-hidden="true"
+                            />
+                            <span>{errors.helperPhone}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Row 3: Languages */}
+                      <div>
+                        <label
+                          htmlFor="driverLanguage"
+                          className="text-sm font-medium text-gray-700"
+                        >
+                          Driver Language
+                          <span className="text-red-500"> *</span>
+                        </label>
+                        <div className="relative mt-2">
+                          <Globe
+                            className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400"
+                            aria-hidden="true"
+                          />
+                          <div className="relative max-w-md">
+                            <button
+                              ref={prefButtonRef}
+                              type="button"
+                              aria-haspopup="listbox"
+                              aria-expanded={prefDropdownOpen}
+                              onClick={() => {
+                                setPrefDropdownOpen((s) => !s);
+                                setPrefHighlight(
+                                  languages.findIndex(
                                     (l) => l.value === formData.driverLanguage
-                                  )?.label
-                                }
-                              </span>
-                              <svg
-                                className={`ml-auto h-4 w-4 text-gray-500 transform ${
-                                  prefDropdownOpen ? "rotate-180" : "rotate-0"
-                                }`}
-                                viewBox="0 0 20 20"
-                                fill="none"
-                                xmlns="http://www.w3.org/2000/svg"
-                                aria-hidden
-                              >
-                                <path
-                                  d="M6 8l4 4 4-4"
-                                  stroke="currentColor"
-                                  strokeWidth="1.5"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            </div>
-                          </button>
-                          {prefDropdownOpen && (
-                            <div className="absolute left-0 right-0 z-40 mt-2 rounded-xl bg-white border border-gray-200 shadow-lg">
-                              <div className="p-2">
-                                <input
-                                  ref={prefListRef}
-                                  type="text"
-                                  value={prefSearch}
-                                  onChange={(e) => {
-                                    setPrefSearch(e.target.value);
-                                    setPrefHighlight(0);
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "ArrowDown") {
-                                      e.preventDefault();
-                                      const filtered = languages.filter((l) =>
-                                        l.label
-                                          .toLowerCase()
-                                          .includes(prefSearch.toLowerCase())
-                                      );
-                                      setPrefHighlight((prev) =>
-                                        Math.min(prev + 1, filtered.length - 1)
-                                      );
-                                    } else if (e.key === "ArrowUp") {
-                                      e.preventDefault();
-                                      setPrefHighlight((prev) =>
-                                        Math.max(prev - 1, 0)
-                                      );
-                                    } else if (e.key === "Enter") {
-                                      e.preventDefault();
-                                      const filtered = languages.filter((l) =>
-                                        l.label
-                                          .toLowerCase()
-                                          .includes(prefSearch.toLowerCase())
-                                      );
-                                      if (filtered[prefHighlight]) {
-                                        handleInputChange(
-                                          "driverLanguage",
-                                          filtered[prefHighlight].value
-                                        );
-                                        setPrefDropdownOpen(false);
-                                        setPrefSearch("");
-                                      }
-                                    }
-                                  }}
-                                  placeholder="Search languages..."
-                                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                />
-                              </div>
-                              <ul
-                                role="listbox"
-                                aria-activedescendant={
-                                  languages.filter((l) =>
-                                    l.label
-                                      .toLowerCase()
-                                      .includes(prefSearch.toLowerCase())
-                                  )[prefHighlight]?.value
-                                }
-                                tabIndex={-1}
-                                className="max-h-60 overflow-auto py-2"
-                              >
-                                {languages
-                                  .filter((l) =>
-                                    l.label
-                                      .toLowerCase()
-                                      .includes(prefSearch.toLowerCase())
                                   )
-                                  .map((opt, idx) => (
-                                    <li
-                                      key={opt.value}
-                                      role="option"
-                                      aria-selected={
-                                        formData.driverLanguage === opt.value
-                                      }
-                                      onClick={() => {
-                                        handleInputChange(
-                                          "driverLanguage",
-                                          opt.value
+                                );
+                              }}
+                              className={`w-full rounded-xl border ${
+                                errors.driverLanguage
+                                  ? "border-red-400 bg-red-50"
+                                  : "border-gray-300"
+                              } bg-white px-4 py-3 text-left text-sm font-medium text-gray-900 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <Globe className="h-4 w-4 text-gray-400" />
+                                <span>
+                                  {
+                                    languages.find(
+                                      (l) => l.value === formData.driverLanguage
+                                    )?.label
+                                  }
+                                </span>
+                                <svg
+                                  className={`ml-auto h-4 w-4 text-gray-500 transform ${
+                                    prefDropdownOpen ? "rotate-180" : "rotate-0"
+                                  }`}
+                                  viewBox="0 0 20 20"
+                                  fill="none"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  aria-hidden
+                                >
+                                  <path
+                                    d="M6 8l4 4 4-4"
+                                    stroke="currentColor"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              </div>
+                            </button>
+                            {prefDropdownOpen && (
+                              <div className="absolute left-0 right-0 z-40 mt-2 rounded-xl bg-white border border-gray-200 shadow-lg">
+                                <div className="p-2">
+                                  <input
+                                    ref={prefListRef}
+                                    type="text"
+                                    value={prefSearch}
+                                    onChange={(e) => {
+                                      setPrefSearch(e.target.value);
+                                      setPrefHighlight(0);
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "ArrowDown") {
+                                        e.preventDefault();
+                                        const filtered = languages.filter((l) =>
+                                          l.label
+                                            .toLowerCase()
+                                            .includes(prefSearch.toLowerCase())
                                         );
-                                        setPrefDropdownOpen(false);
-                                        setPrefSearch("");
-                                      }}
-                                      onMouseEnter={() => setPrefHighlight(idx)}
-                                      className={`cursor-pointer px-4 py-2 text-sm ${
-                                        formData.driverLanguage === opt.value
-                                          ? "bg-blue-50 text-blue-700 font-semibold"
-                                          : prefHighlight === idx
-                                          ? "bg-gray-100"
-                                          : "text-gray-700"
-                                      }`}
-                                    >
-                                      {opt.label}
-                                    </li>
-                                  ))}
-                              </ul>
-                            </div>
-                          )}
+                                        setPrefHighlight((prev) =>
+                                          Math.min(
+                                            prev + 1,
+                                            filtered.length - 1
+                                          )
+                                        );
+                                      } else if (e.key === "ArrowUp") {
+                                        e.preventDefault();
+                                        setPrefHighlight((prev) =>
+                                          Math.max(prev - 1, 0)
+                                        );
+                                      } else if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        const filtered = languages.filter((l) =>
+                                          l.label
+                                            .toLowerCase()
+                                            .includes(prefSearch.toLowerCase())
+                                        );
+                                        if (filtered[prefHighlight]) {
+                                          handleInputChange(
+                                            "driverLanguage",
+                                            filtered[prefHighlight].value
+                                          );
+                                          setPrefDropdownOpen(false);
+                                          setPrefSearch("");
+                                        }
+                                      }
+                                    }}
+                                    placeholder="Search languages..."
+                                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  />
+                                </div>
+                                <ul
+                                  role="listbox"
+                                  aria-activedescendant={
+                                    languages.filter((l) =>
+                                      l.label
+                                        .toLowerCase()
+                                        .includes(prefSearch.toLowerCase())
+                                    )[prefHighlight]?.value
+                                  }
+                                  tabIndex={-1}
+                                  className="max-h-60 overflow-auto py-2"
+                                >
+                                  {languages
+                                    .filter((l) =>
+                                      l.label
+                                        .toLowerCase()
+                                        .includes(prefSearch.toLowerCase())
+                                    )
+                                    .map((opt, idx) => (
+                                      <li
+                                        key={opt.value}
+                                        role="option"
+                                        aria-selected={
+                                          formData.driverLanguage === opt.value
+                                        }
+                                        onClick={() => {
+                                          handleInputChange(
+                                            "driverLanguage",
+                                            opt.value
+                                          );
+                                          setPrefDropdownOpen(false);
+                                          setPrefSearch("");
+                                        }}
+                                        onMouseEnter={() =>
+                                          setPrefHighlight(idx)
+                                        }
+                                        className={`cursor-pointer px-4 py-2 text-sm ${
+                                          formData.driverLanguage === opt.value
+                                            ? "bg-blue-50 text-blue-700 font-semibold"
+                                            : prefHighlight === idx
+                                            ? "bg-gray-100"
+                                            : "text-gray-700"
+                                        }`}
+                                      >
+                                        {opt.label}
+                                      </li>
+                                    ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
                         </div>
+                        {errors.driverLanguage && (
+                          <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
+                            <AlertCircle
+                              className="h-4 w-4"
+                              aria-hidden="true"
+                            />
+                            <span>{errors.driverLanguage}</span>
+                          </div>
+                        )}
                       </div>
-                      {errors.driverLanguage && (
-                        <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
-                          <AlertCircle className="h-4 w-4" aria-hidden="true" />
-                          <span>{errors.driverLanguage}</span>
-                        </div>
-                      )}
-                    </div>
 
-                    <div>
-                      <label
-                        htmlFor="helperLanguage"
-                        className="text-sm font-medium text-gray-700"
-                      >
-                        Helper Language<span className="text-red-500"> *</span>
-                      </label>
-                      <div className="relative mt-2">
-                        <Globe
-                          className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400"
-                          aria-hidden="true"
-                        />
-                        <div className="relative max-w-md">
-                          <button
-                            ref={helperPrefButtonRef}
-                            type="button"
-                            aria-haspopup="listbox"
-                            aria-expanded={helperPrefDropdownOpen}
-                            onClick={() => {
-                              setHelperPrefDropdownOpen((s) => !s);
-                              setHelperPrefHighlight(
-                                languages.findIndex(
-                                  (l) => l.value === formData.helperLanguage
-                                )
-                              );
-                            }}
-                            className={`w-full rounded-xl border ${
-                              errors.helperLanguage
-                                ? "border-red-400 bg-red-50"
-                                : "border-gray-300"
-                            } bg-white px-4 py-3 text-left text-sm font-medium text-gray-900 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <Globe className="h-4 w-4 text-gray-400" />
-                              <span>
-                                {
-                                  languages.find(
+                      <div>
+                        <label
+                          htmlFor="helperLanguage"
+                          className="text-sm font-medium text-gray-700"
+                        >
+                          Helper Language
+                          <span className="text-red-500"> *</span>
+                        </label>
+                        <div className="relative mt-2">
+                          <Globe
+                            className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400"
+                            aria-hidden="true"
+                          />
+                          <div className="relative max-w-md">
+                            <button
+                              ref={helperPrefButtonRef}
+                              type="button"
+                              aria-haspopup="listbox"
+                              aria-expanded={helperPrefDropdownOpen}
+                              onClick={() => {
+                                setHelperPrefDropdownOpen((s) => !s);
+                                setHelperPrefHighlight(
+                                  languages.findIndex(
                                     (l) => l.value === formData.helperLanguage
-                                  )?.label
-                                }
-                              </span>
-                              <svg
-                                className={`ml-auto h-4 w-4 text-gray-500 transform ${
-                                  helperPrefDropdownOpen
-                                    ? "rotate-180"
-                                    : "rotate-0"
-                                }`}
-                                viewBox="0 0 20 20"
-                                fill="none"
-                                xmlns="http://www.w3.org/2000/svg"
-                                aria-hidden
-                              >
-                                <path
-                                  d="M6 8l4 4 4-4"
-                                  stroke="currentColor"
-                                  strokeWidth="1.5"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            </div>
-                          </button>
-                          {helperPrefDropdownOpen && (
-                            <div className="absolute left-0 right-0 z-40 mt-2 rounded-xl bg-white border border-gray-200 shadow-lg">
-                              <div className="p-2">
-                                <input
-                                  ref={helperPrefListRef}
-                                  type="text"
-                                  value={helperPrefSearch}
-                                  onChange={(e) => {
-                                    setHelperPrefSearch(e.target.value);
-                                    setHelperPrefHighlight(0);
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "ArrowDown") {
-                                      e.preventDefault();
-                                      const filtered = languages.filter((l) =>
-                                        l.label
-                                          .toLowerCase()
-                                          .includes(
-                                            helperPrefSearch.toLowerCase()
-                                          )
-                                      );
-                                      setHelperPrefHighlight((prev) =>
-                                        Math.min(prev + 1, filtered.length - 1)
-                                      );
-                                    } else if (e.key === "ArrowUp") {
-                                      e.preventDefault();
-                                      setHelperPrefHighlight((prev) =>
-                                        Math.max(prev - 1, 0)
-                                      );
-                                    } else if (e.key === "Enter") {
-                                      e.preventDefault();
-                                      const filtered = languages.filter((l) =>
-                                        l.label
-                                          .toLowerCase()
-                                          .includes(
-                                            helperPrefSearch.toLowerCase()
-                                          )
-                                      );
-                                      if (filtered[helperPrefHighlight]) {
-                                        handleInputChange(
-                                          "helperLanguage",
-                                          filtered[helperPrefHighlight].value
-                                        );
-                                        setHelperPrefDropdownOpen(false);
-                                        setHelperPrefSearch("");
-                                      }
-                                    }
-                                  }}
-                                  placeholder="Search languages..."
-                                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                />
-                              </div>
-                              <ul
-                                role="listbox"
-                                aria-activedescendant={
-                                  languages.filter((l) =>
-                                    l.label
-                                      .toLowerCase()
-                                      .includes(helperPrefSearch.toLowerCase())
-                                  )[helperPrefHighlight]?.value
-                                }
-                                tabIndex={-1}
-                                className="max-h-60 overflow-auto py-2"
-                              >
-                                {languages
-                                  .filter((l) =>
-                                    l.label
-                                      .toLowerCase()
-                                      .includes(helperPrefSearch.toLowerCase())
                                   )
-                                  .map((opt, idx) => (
-                                    <li
-                                      key={opt.value}
-                                      role="option"
-                                      aria-selected={
-                                        formData.helperLanguage === opt.value
-                                      }
-                                      onClick={() => {
-                                        handleInputChange(
-                                          "helperLanguage",
-                                          opt.value
+                                );
+                              }}
+                              className={`w-full rounded-xl border ${
+                                errors.helperLanguage
+                                  ? "border-red-400 bg-red-50"
+                                  : "border-gray-300"
+                              } bg-white px-4 py-3 text-left text-sm font-medium text-gray-900 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <Globe className="h-4 w-4 text-gray-400" />
+                                <span>
+                                  {
+                                    languages.find(
+                                      (l) => l.value === formData.helperLanguage
+                                    )?.label
+                                  }
+                                </span>
+                                <svg
+                                  className={`ml-auto h-4 w-4 text-gray-500 transform ${
+                                    helperPrefDropdownOpen
+                                      ? "rotate-180"
+                                      : "rotate-0"
+                                  }`}
+                                  viewBox="0 0 20 20"
+                                  fill="none"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  aria-hidden
+                                >
+                                  <path
+                                    d="M6 8l4 4 4-4"
+                                    stroke="currentColor"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              </div>
+                            </button>
+                            {helperPrefDropdownOpen && (
+                              <div className="absolute left-0 right-0 z-40 mt-2 rounded-xl bg-white border border-gray-200 shadow-lg">
+                                <div className="p-2">
+                                  <input
+                                    ref={helperPrefListRef}
+                                    type="text"
+                                    value={helperPrefSearch}
+                                    onChange={(e) => {
+                                      setHelperPrefSearch(e.target.value);
+                                      setHelperPrefHighlight(0);
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "ArrowDown") {
+                                        e.preventDefault();
+                                        const filtered = languages.filter((l) =>
+                                          l.label
+                                            .toLowerCase()
+                                            .includes(
+                                              helperPrefSearch.toLowerCase()
+                                            )
                                         );
-                                        setHelperPrefDropdownOpen(false);
-                                        setHelperPrefSearch("");
-                                      }}
-                                      onMouseEnter={() =>
-                                        setHelperPrefHighlight(idx)
+                                        setHelperPrefHighlight((prev) =>
+                                          Math.min(
+                                            prev + 1,
+                                            filtered.length - 1
+                                          )
+                                        );
+                                      } else if (e.key === "ArrowUp") {
+                                        e.preventDefault();
+                                        setHelperPrefHighlight((prev) =>
+                                          Math.max(prev - 1, 0)
+                                        );
+                                      } else if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        const filtered = languages.filter((l) =>
+                                          l.label
+                                            .toLowerCase()
+                                            .includes(
+                                              helperPrefSearch.toLowerCase()
+                                            )
+                                        );
+                                        if (filtered[helperPrefHighlight]) {
+                                          handleInputChange(
+                                            "helperLanguage",
+                                            filtered[helperPrefHighlight].value
+                                          );
+                                          setHelperPrefDropdownOpen(false);
+                                          setHelperPrefSearch("");
+                                        }
                                       }
-                                      className={`cursor-pointer px-4 py-2 text-sm ${
-                                        formData.helperLanguage === opt.value
-                                          ? "bg-blue-50 text-blue-700 font-semibold"
-                                          : helperPrefHighlight === idx
-                                          ? "bg-gray-100"
-                                          : "text-gray-700"
-                                      }`}
-                                    >
-                                      {opt.label}
-                                    </li>
-                                  ))}
-                              </ul>
-                            </div>
-                          )}
+                                    }}
+                                    placeholder="Search languages..."
+                                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  />
+                                </div>
+                                <ul
+                                  role="listbox"
+                                  aria-activedescendant={
+                                    languages.filter((l) =>
+                                      l.label
+                                        .toLowerCase()
+                                        .includes(
+                                          helperPrefSearch.toLowerCase()
+                                        )
+                                    )[helperPrefHighlight]?.value
+                                  }
+                                  tabIndex={-1}
+                                  className="max-h-60 overflow-auto py-2"
+                                >
+                                  {languages
+                                    .filter((l) =>
+                                      l.label
+                                        .toLowerCase()
+                                        .includes(
+                                          helperPrefSearch.toLowerCase()
+                                        )
+                                    )
+                                    .map((opt, idx) => (
+                                      <li
+                                        key={opt.value}
+                                        role="option"
+                                        aria-selected={
+                                          formData.helperLanguage === opt.value
+                                        }
+                                        onClick={() => {
+                                          handleInputChange(
+                                            "helperLanguage",
+                                            opt.value
+                                          );
+                                          setHelperPrefDropdownOpen(false);
+                                          setHelperPrefSearch("");
+                                        }}
+                                        onMouseEnter={() =>
+                                          setHelperPrefHighlight(idx)
+                                        }
+                                        className={`cursor-pointer px-4 py-2 text-sm ${
+                                          formData.helperLanguage === opt.value
+                                            ? "bg-blue-50 text-blue-700 font-semibold"
+                                            : helperPrefHighlight === idx
+                                            ? "bg-gray-100"
+                                            : "text-gray-700"
+                                        }`}
+                                      >
+                                        {opt.label}
+                                      </li>
+                                    ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
                         </div>
+                        {errors.helperLanguage && (
+                          <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
+                            <AlertCircle
+                              className="h-4 w-4"
+                              aria-hidden="true"
+                            />
+                            <span>{errors.helperLanguage}</span>
+                          </div>
+                        )}
                       </div>
-                      {errors.helperLanguage && (
-                        <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
-                          <AlertCircle className="h-4 w-4" aria-hidden="true" />
-                          <span>{errors.helperLanguage}</span>
-                        </div>
-                      )}
                     </div>
-                  </div>
-                </section>
+                  </section>
+                </>
               )}
 
               {currentStep === 2 && (
-                <section className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
-                  <div className="flex items-center gap-3">
-                    <FileText
-                      className="h-5 w-5 text-blue-600"
-                      aria-hidden="true"
-                    />
-                    <h2 className="text-lg font-semibold text-gray-800">
-                      Document Uploads
-                    </h2>
-                  </div>
-                  <div className="mt-6 grid gap-6">
-                    <div className="grid gap-3">
-                      <label
-                        htmlFor="docType"
-                        className="text-sm font-medium text-gray-700"
-                      >
-                        Select Document Type to Upload
-                      </label>
-                      <div className="relative mt-2 w-full max-w-md">
-                        <div className="relative">
-                          <button
-                            ref={docButtonRef}
-                            type="button"
-                            aria-haspopup="listbox"
-                            aria-expanded={docDropdownOpen}
-                            onClick={() => {
-                              setDocDropdownOpen((s) => {
-                                const next = !s;
-                                if (next) {
-                                  const init = documentOptions.map((o) => ({
-                                    ...o,
-                                    disabled: !!files[o.id],
-                                  }));
-                                  const first = init.findIndex(
-                                    (f) => !f.disabled
-                                  );
-                                  setDocHighlight(first >= 0 ? first : 0);
-                                  setDocSearch("");
-                                }
-                                return next;
-                              });
-                            }}
-                            onKeyDown={(e) => {
-                              if (
-                                e.key === "ArrowDown" ||
-                                e.key === "Enter" ||
-                                e.key === " "
-                              ) {
-                                e.preventDefault();
-                                setDocDropdownOpen(true);
-                                setTimeout(
-                                  () => docListRef.current?.focus?.(),
-                                  0
-                                );
-                              }
-                            }}
-                            className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-left text-sm font-medium text-gray-900 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span>
-                                {
-                                  documentOptions.find(
-                                    (d) => d.id === selectedDocType
-                                  )?.label
-                                }
-                              </span>
-                              <svg
-                                className={`h-4 w-4 text-gray-500 transform transition-transform ${
-                                  docDropdownOpen ? "rotate-180" : "rotate-0"
-                                }`}
-                                viewBox="0 0 20 20"
-                                fill="none"
-                                xmlns="http://www.w3.org/2000/svg"
-                                aria-hidden
-                              >
-                                <path
-                                  d="M6 8l4 4 4-4"
-                                  stroke="currentColor"
-                                  strokeWidth="1.5"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            </div>
-                          </button>
-
-                          {docDropdownOpen && (
-                            <div className="absolute left-0 right-0 z-40 mt-2 rounded-xl bg-white border border-gray-200 shadow-lg">
-                              <div className="p-2">
-                                <input
-                                  ref={docListRef}
-                                  type="text"
-                                  value={docSearch}
-                                  onChange={(e) => {
-                                    setDocSearch(e.target.value);
-                                    // reset highlight to first non-disabled match
-                                    const filteredInit = documentOptions
-                                      .filter((o) =>
-                                        o.label
-                                          .toLowerCase()
-                                          .includes(
-                                            e.target.value.toLowerCase()
-                                          )
-                                      )
-                                      .map((o) => ({
-                                        ...o,
-                                        disabled: !!files[o.id],
-                                      }));
-                                    const first = filteredInit.findIndex(
+                <>
+                  {autoFillData &&
+                    autoFillData.documents &&
+                    autoFillData.documents.length > 0 && (
+                      <div className="mb-4 flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                        <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+                        <div>
+                          <p className="font-semibold">
+                            Previously uploaded documents found:
+                          </p>
+                          <ul className="mt-1 list-disc list-inside">
+                            {autoFillData.documents.map((doc, idx) => (
+                              <li key={idx}>
+                                {doc.type_display || doc.type} - {doc.name}
+                              </li>
+                            ))}
+                          </ul>
+                          <p className="mt-2 text-xs">
+                            Upload new documents below to add more or replace
+                            existing ones.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  <section className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
+                    <div className="flex items-center gap-3">
+                      <FileText
+                        className="h-5 w-5 text-blue-600"
+                        aria-hidden="true"
+                      />
+                      <h2 className="text-lg font-semibold text-gray-800">
+                        Document Uploads
+                      </h2>
+                    </div>
+                    <div className="mt-6 grid gap-6">
+                      <div className="grid gap-3">
+                        <label
+                          htmlFor="docType"
+                          className="text-sm font-medium text-gray-700"
+                        >
+                          Select Document Type to Upload
+                        </label>
+                        <div className="relative mt-2 w-full max-w-md">
+                          <div className="relative">
+                            <button
+                              ref={docButtonRef}
+                              type="button"
+                              aria-haspopup="listbox"
+                              aria-expanded={docDropdownOpen}
+                              onClick={() => {
+                                setDocDropdownOpen((s) => {
+                                  const next = !s;
+                                  if (next) {
+                                    const init = documentOptions.map((o) => ({
+                                      ...o,
+                                      disabled: !!files[o.id],
+                                    }));
+                                    const first = init.findIndex(
                                       (f) => !f.disabled
                                     );
                                     setDocHighlight(first >= 0 ? first : 0);
-                                  }}
-                                  onKeyDown={(e) => {
-                                    const filtered = documentOptions
-                                      .filter((o) =>
-                                        o.label
-                                          .toLowerCase()
-                                          .includes(docSearch.toLowerCase())
-                                      )
-                                      .map((o) => ({
-                                        ...o,
-                                        disabled: !!files[o.id],
-                                      }));
-                                    if (e.key === "ArrowDown") {
-                                      e.preventDefault();
-                                      // move to next non-disabled
-                                      setDocHighlight((h) => {
-                                        let n = h;
-                                        for (
-                                          let i = 0;
-                                          i < filtered.length;
-                                          i++
-                                        ) {
-                                          n = Math.min(
-                                            n + 1,
-                                            filtered.length - 1
-                                          );
-                                          if (!filtered[n].disabled) return n;
-                                          if (n === filtered.length - 1) break;
-                                        }
-                                        return h;
-                                      });
-                                    } else if (e.key === "ArrowUp") {
-                                      e.preventDefault();
-                                      setDocHighlight((h) => {
-                                        let n = h;
-                                        for (
-                                          let i = 0;
-                                          i < filtered.length;
-                                          i++
-                                        ) {
-                                          n = Math.max(n - 1, 0);
-                                          if (!filtered[n].disabled) return n;
-                                          if (n === 0) break;
-                                        }
-                                        return h;
-                                      });
-                                    } else if (e.key === "Enter") {
-                                      e.preventDefault();
-                                      const pick = documentOptions
+                                    setDocSearch("");
+                                  }
+                                  return next;
+                                });
+                              }}
+                              onKeyDown={(e) => {
+                                if (
+                                  e.key === "ArrowDown" ||
+                                  e.key === "Enter" ||
+                                  e.key === " "
+                                ) {
+                                  e.preventDefault();
+                                  setDocDropdownOpen(true);
+                                  setTimeout(
+                                    () => docListRef.current?.focus?.(),
+                                    0
+                                  );
+                                }
+                              }}
+                              className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-left text-sm font-medium text-gray-900 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span>
+                                  {
+                                    documentOptions.find(
+                                      (d) => d.id === selectedDocType
+                                    )?.label
+                                  }
+                                </span>
+                                <svg
+                                  className={`h-4 w-4 text-gray-500 transform transition-transform ${
+                                    docDropdownOpen ? "rotate-180" : "rotate-0"
+                                  }`}
+                                  viewBox="0 0 20 20"
+                                  fill="none"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  aria-hidden
+                                >
+                                  <path
+                                    d="M6 8l4 4 4-4"
+                                    stroke="currentColor"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              </div>
+                            </button>
+
+                            {docDropdownOpen && (
+                              <div className="absolute left-0 right-0 z-40 mt-2 rounded-xl bg-white border border-gray-200 shadow-lg">
+                                <div className="p-2">
+                                  <input
+                                    ref={docListRef}
+                                    type="text"
+                                    value={docSearch}
+                                    onChange={(e) => {
+                                      setDocSearch(e.target.value);
+                                      // reset highlight to first non-disabled match
+                                      const filteredInit = documentOptions
+                                        .filter((o) =>
+                                          o.label
+                                            .toLowerCase()
+                                            .includes(
+                                              e.target.value.toLowerCase()
+                                            )
+                                        )
+                                        .map((o) => ({
+                                          ...o,
+                                          disabled: !!files[o.id],
+                                        }));
+                                      const first = filteredInit.findIndex(
+                                        (f) => !f.disabled
+                                      );
+                                      setDocHighlight(first >= 0 ? first : 0);
+                                    }}
+                                    onKeyDown={(e) => {
+                                      const filtered = documentOptions
                                         .filter((o) =>
                                           o.label
                                             .toLowerCase()
@@ -2642,199 +2741,247 @@ const CustomerPortal = () => {
                                         .map((o) => ({
                                           ...o,
                                           disabled: !!files[o.id],
-                                        }))[docHighlight];
-                                      if (pick && !pick.disabled) {
-                                        setSelectedDocType(pick.id);
+                                        }));
+                                      if (e.key === "ArrowDown") {
+                                        e.preventDefault();
+                                        // move to next non-disabled
+                                        setDocHighlight((h) => {
+                                          let n = h;
+                                          for (
+                                            let i = 0;
+                                            i < filtered.length;
+                                            i++
+                                          ) {
+                                            n = Math.min(
+                                              n + 1,
+                                              filtered.length - 1
+                                            );
+                                            if (!filtered[n].disabled) return n;
+                                            if (n === filtered.length - 1)
+                                              break;
+                                          }
+                                          return h;
+                                        });
+                                      } else if (e.key === "ArrowUp") {
+                                        e.preventDefault();
+                                        setDocHighlight((h) => {
+                                          let n = h;
+                                          for (
+                                            let i = 0;
+                                            i < filtered.length;
+                                            i++
+                                          ) {
+                                            n = Math.max(n - 1, 0);
+                                            if (!filtered[n].disabled) return n;
+                                            if (n === 0) break;
+                                          }
+                                          return h;
+                                        });
+                                      } else if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        const pick = documentOptions
+                                          .filter((o) =>
+                                            o.label
+                                              .toLowerCase()
+                                              .includes(docSearch.toLowerCase())
+                                          )
+                                          .map((o) => ({
+                                            ...o,
+                                            disabled: !!files[o.id],
+                                          }))[docHighlight];
+                                        if (pick && !pick.disabled) {
+                                          setSelectedDocType(pick.id);
+                                          setDocDropdownOpen(false);
+                                        }
+                                      } else if (e.key === "Escape") {
                                         setDocDropdownOpen(false);
                                       }
-                                    } else if (e.key === "Escape") {
-                                      setDocDropdownOpen(false);
-                                    }
-                                  }}
-                                  placeholder="Search documents..."
-                                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                />
+                                    }}
+                                    placeholder="Search documents..."
+                                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  />
+                                </div>
+                                <ul
+                                  role="listbox"
+                                  aria-activedescendant={
+                                    documentOptions[docHighlight]?.id
+                                  }
+                                  tabIndex={-1}
+                                  className="max-h-60 overflow-auto py-2"
+                                >
+                                  {documentOptions
+                                    .filter((o) =>
+                                      o.label
+                                        .toLowerCase()
+                                        .includes(docSearch.toLowerCase())
+                                    )
+                                    .map((opt, idx) => {
+                                      const disabled = !!files[opt.id];
+                                      return (
+                                        <li
+                                          key={opt.id}
+                                          id={opt.id}
+                                          role="option"
+                                          aria-selected={
+                                            selectedDocType === opt.id
+                                          }
+                                          aria-disabled={disabled}
+                                          onClick={() => {
+                                            setSelectedDocType(opt.id);
+                                            setDocDropdownOpen(false);
+                                          }}
+                                          onMouseEnter={() =>
+                                            setDocHighlight(idx)
+                                          }
+                                          className={`px-4 py-2 text-sm cursor-pointer ${
+                                            selectedDocType === opt.id
+                                              ? "bg-blue-50 text-blue-700 font-semibold"
+                                              : docHighlight === idx
+                                              ? "bg-gray-100"
+                                              : "text-gray-700"
+                                          }`}
+                                        >
+                                          {opt.label}
+                                        </li>
+                                      );
+                                    })}
+                                </ul>
                               </div>
-                              <ul
-                                role="listbox"
-                                aria-activedescendant={
-                                  documentOptions[docHighlight]?.id
-                                }
-                                tabIndex={-1}
-                                className="max-h-60 overflow-auto py-2"
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="mt-3 flex items-start gap-4">
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              const f = e.dataTransfer.files?.[0];
+                              if (f) handleStageFile(f);
+                            }}
+                            onDragOver={(e) => e.preventDefault()}
+                            onClick={() =>
+                              document
+                                .getElementById("staged-file-input")
+                                ?.click()
+                            }
+                            className={`flex-1 cursor-pointer rounded-xl border-2 border-dashed p-4 text-center transition-all duration-150 ${
+                              errors.staged
+                                ? "border-red-400 bg-red-50"
+                                : "border-gray-300 bg-white"
+                            }`}
+                          >
+                            <p className="text-sm font-medium text-gray-700">
+                              {stagedFile
+                                ? stagedFile.name
+                                : "Drag & drop a file here or click to browse"}
+                            </p>
+                            <p className="mt-1 text-xs text-gray-500">
+                              PDF, JPG, JPEG, PNG up to 5MB
+                            </p>
+                            <input
+                              id="staged-file-input"
+                              type="file"
+                              accept=".pdf,.jpg,.jpeg,.png"
+                              className="hidden"
+                              onChange={(e) => {
+                                const s = e.target.files?.[0];
+                                if (s) handleStageFile(s);
+                              }}
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-2">
+                            <button
+                              type="button"
+                              onClick={handleUploadStaged}
+                              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                            >
+                              Upload
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setStagedFile(null);
+                                setErrors((p) => {
+                                  const c = { ...p };
+                                  delete c.staged;
+                                  return c;
+                                });
+                              }}
+                              className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        </div>
+
+                        {errors.staged && (
+                          <div className="mt-2 text-sm text-red-600">
+                            {errors.staged}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid gap-4">
+                        <p className="text-sm font-medium text-gray-700">
+                          Uploaded Documents
+                        </p>
+                        <div className="grid gap-3">
+                          {errors.documents && (
+                            <div className="text-sm text-red-600">
+                              {errors.documents}
+                            </div>
+                          )}
+                          {documentOptions.map((opt) => {
+                            const arr = files[opt.id] || [];
+                            if (!Array.isArray(arr) || arr.length === 0)
+                              return null;
+                            return arr.map((file, idx) => (
+                              <div
+                                key={`${opt.id}-${idx}`}
+                                className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3"
                               >
-                                {documentOptions
-                                  .filter((o) =>
-                                    o.label
-                                      .toLowerCase()
-                                      .includes(docSearch.toLowerCase())
-                                  )
-                                  .map((opt, idx) => {
-                                    const disabled = !!files[opt.id];
-                                    return (
-                                      <li
-                                        key={opt.id}
-                                        id={opt.id}
-                                        role="option"
-                                        aria-selected={
-                                          selectedDocType === opt.id
-                                        }
-                                        aria-disabled={disabled}
-                                        onClick={() => {
-                                          setSelectedDocType(opt.id);
-                                          setDocDropdownOpen(false);
-                                        }}
-                                        onMouseEnter={() =>
-                                          setDocHighlight(idx)
-                                        }
-                                        className={`px-4 py-2 text-sm cursor-pointer ${
-                                          selectedDocType === opt.id
-                                            ? "bg-blue-50 text-blue-700 font-semibold"
-                                            : docHighlight === idx
-                                            ? "bg-gray-100"
-                                            : "text-gray-700"
-                                        }`}
-                                      >
-                                        {opt.label}
-                                      </li>
-                                    );
-                                  })}
-                              </ul>
+                                <div className="flex items-center gap-3">
+                                  <FileText className="h-5 w-5 text-blue-600" />
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-800">
+                                      {opt.label}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      {file.name}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleClearUploaded(opt.id, idx)
+                                    }
+                                    className="inline-flex items-center gap-2 rounded-md border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
+                                  >
+                                    Clear
+                                  </button>
+                                </div>
+                              </div>
+                            ));
+                          })}
+
+                          {Object.values(files).every(
+                            (arr) => !Array.isArray(arr) || arr.length === 0
+                          ) && (
+                            <div className="rounded-md border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-500">
+                              No documents uploaded yet. Use the dropdown above
+                              to select a type and upload a document.
                             </div>
                           )}
                         </div>
                       </div>
-
-                      <div className="mt-3 flex items-start gap-4">
-                        <div
-                          role="button"
-                          tabIndex={0}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            const f = e.dataTransfer.files?.[0];
-                            if (f) handleStageFile(f);
-                          }}
-                          onDragOver={(e) => e.preventDefault()}
-                          onClick={() =>
-                            document
-                              .getElementById("staged-file-input")
-                              ?.click()
-                          }
-                          className={`flex-1 cursor-pointer rounded-xl border-2 border-dashed p-4 text-center transition-all duration-150 ${
-                            errors.staged
-                              ? "border-red-400 bg-red-50"
-                              : "border-gray-300 bg-white"
-                          }`}
-                        >
-                          <p className="text-sm font-medium text-gray-700">
-                            {stagedFile
-                              ? stagedFile.name
-                              : "Drag & drop a file here or click to browse"}
-                          </p>
-                          <p className="mt-1 text-xs text-gray-500">
-                            PDF, JPG, JPEG, PNG up to 5MB
-                          </p>
-                          <input
-                            id="staged-file-input"
-                            type="file"
-                            accept=".pdf,.jpg,.jpeg,.png"
-                            className="hidden"
-                            onChange={(e) => {
-                              const s = e.target.files?.[0];
-                              if (s) handleStageFile(s);
-                            }}
-                          />
-                        </div>
-
-                        <div className="flex flex-col gap-2">
-                          <button
-                            type="button"
-                            onClick={handleUploadStaged}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-                          >
-                            Upload
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setStagedFile(null);
-                              setErrors((p) => {
-                                const c = { ...p };
-                                delete c.staged;
-                                return c;
-                              });
-                            }}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                          >
-                            Clear
-                          </button>
-                        </div>
-                      </div>
-
-                      {errors.staged && (
-                        <div className="mt-2 text-sm text-red-600">
-                          {errors.staged}
-                        </div>
-                      )}
                     </div>
-
-                    <div className="grid gap-4">
-                      <p className="text-sm font-medium text-gray-700">
-                        Uploaded Documents
-                      </p>
-                      <div className="grid gap-3">
-                        {errors.documents && (
-                          <div className="text-sm text-red-600">
-                            {errors.documents}
-                          </div>
-                        )}
-                        {documentOptions.map((opt) => {
-                          const arr = files[opt.id] || [];
-                          if (!Array.isArray(arr) || arr.length === 0)
-                            return null;
-                          return arr.map((file, idx) => (
-                            <div
-                              key={`${opt.id}-${idx}`}
-                              className="flex items-center justify-between gap-3 rounded-xl border px-4 py-3"
-                            >
-                              <div className="flex items-center gap-3">
-                                <FileText className="h-5 w-5 text-blue-600" />
-                                <div>
-                                  <p className="text-sm font-medium text-gray-800">
-                                    {opt.label}
-                                  </p>
-                                  <p className="text-xs text-gray-500">
-                                    {file.name}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleClearUploaded(opt.id, idx)
-                                  }
-                                  className="inline-flex items-center gap-2 rounded-md border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
-                                >
-                                  Clear
-                                </button>
-                              </div>
-                            </div>
-                          ));
-                        })}
-
-                        {Object.values(files).every(
-                          (arr) => !Array.isArray(arr) || arr.length === 0
-                        ) && (
-                          <div className="rounded-md border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-500">
-                            No documents uploaded yet. Use the dropdown above to
-                            select a type and upload a document.
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </section>
+                  </section>
+                </>
               )}
             </form>
 
