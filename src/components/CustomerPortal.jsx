@@ -1300,7 +1300,7 @@ const CustomerPortal = () => {
       return;
     }
 
-    // Additional validation for PO number
+    // CRITICAL: Validate PO number before building payload
     if (!formData.poNumber || !formData.poNumber.trim()) {
       setSubmitError(
         "PO number is required. Please go back to Step 1 and enter it."
@@ -1309,33 +1309,18 @@ const CustomerPortal = () => {
       return;
     }
 
-    // Check for missing documents
-    const missingDocs = documentOptions.filter((d) => !files[d.id]);
-    if (missingDocs.length > 0) {
-      setCurrentStep(2);
-
-      if (missingDocs.length === 1) {
-        showPopupMessage(`${missingDocs[0].label} was not uploaded`, "warning");
-      } else if (missingDocs.length === 2) {
-        showPopupMessage(
-          `${missingDocs[0].label} and ${missingDocs[1].label} were not uploaded`,
-          "warning"
-        );
-      } else {
-        const firstTwo = missingDocs
-          .slice(0, 2)
-          .map((d) => d.label)
-          .join(", ");
-        const remaining = missingDocs.length - 2;
-        showPopupMessage(
-          `${firstTwo} and ${remaining} other document${
-            remaining > 1 ? "s" : ""
-          } were not uploaded`,
-          "warning"
-        );
+    // Check if at least ONE document is uploaded
+    const hasAnyDocument = Object.values(files).some((fileData) => {
+      if (Array.isArray(fileData)) {
+        return fileData.length > 0;
       }
+      return !!fileData;
+    });
 
-      setSubmitError("Please upload all required documents before submitting.");
+    if (!hasAnyDocument) {
+      setCurrentStep(2);
+      showPopupMessage("Please upload at least one document", "warning");
+      setSubmitError("At least one document upload is required to submit.");
       return;
     }
 
@@ -1343,52 +1328,28 @@ const CustomerPortal = () => {
     setSubmitError("");
     setMockNotice("");
 
-    // Build FormData with snake_case field names for Django backend
-    const payload = new FormData();
-
-    // Customer information
-    if (formData.customerEmail) {
-      payload.append("customer_email", formData.customerEmail.trim());
-    }
-    if (formData.customerPhone) {
-      payload.append("customer_phone", formData.customerPhone);
-    }
-
-    // Vehicle and PO information
-    payload.append("vehicle_number", formData.vehicleNumber.trim());
-    payload.append("po_number", formData.poNumber.trim()); // Remove the if condition - make it required
-
-    // Driver information
-    payload.append("driver_phone", formData.driverPhone);
-    if (formData.driverName) {
-      payload.append("driver_name", formData.driverName.trim());
-    }
-    payload.append("driver_language", formData.driverLanguage);
-
-    // Helper information
-    if (formData.helperPhone) {
-      payload.append("helper_phone", formData.helperPhone);
-    }
-    if (formData.helperName) {
-      payload.append("helper_name", formData.helperName.trim());
-    }
-    if (formData.helperLanguage) {
-      payload.append("helper_language", formData.helperLanguage);
-    }
-
-    // Append document files
-    Object.entries(files).forEach(([key, arrOrFile]) => {
-      if (!arrOrFile) return;
-
-      if (Array.isArray(arrOrFile)) {
-        arrOrFile.forEach((file) => payload.append(key, file));
-      } else {
-        payload.append(key, arrOrFile);
-      }
-    });
-
     try {
-      // Use the submissionsAPI service instead of fetch
+      // Build payload with ONLY form data (NO FILES)
+      // Files are already uploaded to server via uploadToDocumentControl
+      const payload = {
+        customer_email: formData.customerEmail.trim(),
+        customer_phone: formData.customerPhone,
+        vehicle_number: formData.vehicleNumber.trim(),
+        poNumber: formData.poNumber.trim(),
+        driver_phone: formData.driverPhone,
+        driver_name: formData.driverName.trim(),
+        driver_language: formData.driverLanguage,
+        helper_phone: formData.helperPhone,
+        helper_name: formData.helperName.trim(),
+        helper_language: formData.helperLanguage,
+      };
+
+      // Debug: Log what we're sending
+      console.log("=== SUBMISSION DATA ===");
+      console.log(JSON.stringify(payload, null, 2));
+      console.log("======================");
+
+      // Send JSON payload (not FormData since files are already uploaded)
       const response = await submissionsAPI.createSubmission(payload);
 
       // Extract submission data from response
@@ -1423,24 +1384,29 @@ const CustomerPortal = () => {
       setSubmitError("");
     } catch (error) {
       console.error("Submission error:", error);
+      console.error("Error response:", error.response?.data);
 
       // Handle different error types
       let errorMessage = "Unable to submit entry. Please try again.";
 
       if (error.response) {
-        // Backend returned an error response
         const status = error.response.status;
         const data = error.response.data;
 
         if (status === 400) {
-          // Validation errors
-          errorMessage =
-            data?.error ||
-            data?.message ||
-            "Invalid data provided. Please check your inputs.";
+          if (data?.error) {
+            errorMessage = data.error;
+          } else if (typeof data === "object") {
+            const fieldErrors = Object.entries(data)
+              .map(([field, errors]) => {
+                const errorArray = Array.isArray(errors) ? errors : [errors];
+                return `${field}: ${errorArray.join(", ")}`;
+              })
+              .join("\n");
+            errorMessage = `Validation errors:\n${fieldErrors}`;
+          }
         } else if (status === 401) {
           errorMessage = "Authentication failed. Please sign in again.";
-          // The interceptor will handle token refresh automatically
         } else if (status === 403) {
           errorMessage = "You don't have permission to perform this action.";
         } else if (status === 500) {
@@ -1449,7 +1415,6 @@ const CustomerPortal = () => {
           errorMessage = data.error || data.message;
         }
       } else if (error.request) {
-        // Request was made but no response received
         errorMessage =
           "Network error. Please check your connection and try again.";
       }

@@ -141,9 +141,13 @@ export const submissionsAPI = {
   getSubmissions: (params) => api.get("/submissions/", { params }),
 
   createSubmission: (data) => {
+    // If data is FormData, use multipart/form-data
+    // If data is plain object, use application/json
     const config = {};
     if (data instanceof FormData) {
       config.headers = { "Content-Type": "multipart/form-data" };
+    } else {
+      config.headers = { "Content-Type": "application/json" };
     }
     return api.post("/submissions/create/", data, config);
   },

@@ -1,67 +1,42 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.db import transaction
 from django.core.mail import EmailMessage
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from .models import GateEntrySubmission, AuditLog
 from .serializers import GateEntrySubmissionSerializer, SubmissionCreateSerializer
 from .qr_generator import generate_qr_code
 from vehicles.models import VehicleDetails
 from drivers.models import DriverHelper
 from documents.models import CustomerDocument
+from po_details.models import PODetails
+from podrivervehicletagging.models import DriverVehicleTagging, PODriverVehicleTagging
 import hashlib
 import json
 
 class GateEntrySubmissionViewSet(viewsets.ModelViewSet):
     queryset = GateEntrySubmission.objects.all()
     serializer_class = GateEntrySubmissionSerializer
-    parser_classes = (MultiPartParser, FormParser)
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
 
     @action(detail=False, methods=['post'], url_path='create')
     def create_submission(self, request):
         """
         Create gate entry submission with QR code generation
+        Documents should already be uploaded to DocumentControl table
         
-        POST /api/submissions/create/
-        
-        Form Data:
-        - customer_email: string
-        - customer_phone: string
-        - vehicle_number: string
-        - po_number: string
-        - driver_name: string
-        - driver_phone: string
-        - driver_language: string
-        - helper_name: string
-        - helper_phone: string
-        - helper_language: string
-        - purchase_order: file
-        - vehicle_registration: file
-        - vehicle_insurance: file
-        - puc: file
-        - driver_license: file
-        - transportation_approval: file
-        - payment_approval: file
-        - vendor_approval: file
-        
-        Response:
-        {
-            "submission": {
-                "id": 1,
-                "qrCodeImage": "http://...",
-                "vehicleNumber": "MH12AB1234",
-                ...
-            }
-        }
+        Accepts JSON data (not multipart/form-data with files)
         """
+        # Parse request data - works with both JSON and FormData
         serializer = SubmissionCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         try:
             with transaction.atomic():
-                # Extract data
+                # Extract data from validated serializer
                 customer_email = serializer.validated_data['customer_email']
                 customer_phone = serializer.validated_data['customer_phone']
                 vehicle_number = serializer.validated_data['vehicle_number']
@@ -71,6 +46,7 @@ class GateEntrySubmissionViewSet(viewsets.ModelViewSet):
                 helper_name = serializer.validated_data.get('helper_name')
                 helper_phone = serializer.validated_data.get('helper_phone')
                 helper_language = serializer.validated_data.get('helper_language', 'en')
+                po_number = serializer.validated_data['poNumber']  # Required field
 
                 # 1. Get or create vehicle
                 vehicle, _ = VehicleDetails.objects.get_or_create(
@@ -96,22 +72,12 @@ class GateEntrySubmissionViewSet(viewsets.ModelViewSet):
                     )
 
                 # 4. Get or create PO
-                from po_details.models import PODetails
-                po_number = serializer.validated_data.get('po_number', '').strip().upper()
-                
-                if not po_number:
-                    return Response({
-                        "error": "PO number is required"
-                    }, status=status.HTTP_400_BAD_REQUEST)
-                
                 po, _ = PODetails.objects.get_or_create(
-                    id=po_number,
+                    id=po_number.strip().upper(),
                     defaults={'customerUserId': request.user}
                 )
 
                 # 5. Create DriverVehicleTagging
-                from podrivervehicletagging.models import DriverVehicleTagging, PODriverVehicleTagging
-                
                 driver_vehicle_tagging = DriverVehicleTagging.objects.create(
                     driverId=driver,
                     helperId=helper,
@@ -137,7 +103,7 @@ class GateEntrySubmissionViewSet(viewsets.ModelViewSet):
                     helper=helper
                 )
 
-                # 8. Generate QR payload hash (simplified)
+                # 8. Generate QR payload hash
                 qr_payload_data = {
                     'po_driver_vehicle_tagging_id': po_driver_vehicle_tagging.id
                 }
@@ -154,24 +120,9 @@ class GateEntrySubmissionViewSet(viewsets.ModelViewSet):
                 submission.qr_code_image = qr_file
                 submission.save()
 
-                # 10. Handle document uploads
-                document_fields = [
-                    'purchase_order', 'vehicle_registration', 'vehicle_insurance',
-                    'puc', 'driver_license', 'transportation_approval',
-                    'payment_approval', 'vendor_approval'
-                ]
-
-                for field in document_fields:
-                    file = request.FILES.get(field)
-                    if file:
-                        CustomerDocument.replace_document(
-                            customer_email=customer_email,
-                            document_type=field,
-                            uploaded_file=file,
-                            vehicle=vehicle,
-                            driver=driver,
-                            helper=helper
-                        )
+                # 10. Documents are already in DocumentControl table
+                # Link documents to this submission if needed
+                # (Optional: You can create relationships here if required)
 
                 # 11. Create audit log
                 AuditLog.objects.create(
@@ -200,7 +151,13 @@ class GateEntrySubmissionViewSet(viewsets.ModelViewSet):
                     }
                 }, status=status.HTTP_201_CREATED)
 
+        except ValidationError as e:
+            return Response({
+                "error": str(e.message) if hasattr(e, 'message') else str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return Response({
                 "error": str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
