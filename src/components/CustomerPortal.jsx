@@ -785,112 +785,150 @@ const CustomerPortal = () => {
   };
 
   const handleUploadStaged = async () => {
-  if (!stagedFile) {
-    setErrors((previous) => ({
-      ...previous,
-      staged: "No file selected to upload.",
-    }));
-    return;
-  }
-
-  // Show loading state
-  setLoading(true);
-  
-  try {
-    // Prepare FormData for API call
-    const formData = new FormData();
-    formData.append('file', stagedFile);
-    formData.append('document_type', selectedDocType);
-    
-    // Add reference fields based on what's available
-    if (formData.vehicleNumber) {
-      formData.append('vehicle_number', formData.vehicleNumber.trim());
-    }
-    if (formData.poNumber) {
-      formData.append('po_number', formData.poNumber.trim());
-    }
-    if (formData.driverPhone) {
-      formData.append('driver_phone', formData.driverPhone);
-    }
-    if (formData.helperPhone) {
-      formData.append('helper_phone', formData.helperPhone);
+    if (!stagedFile) {
+      setErrors((previous) => ({
+        ...previous,
+        staged: "No file selected to upload.",
+      }));
+      return;
     }
 
-    // Call API to upload document
-    const response = await documentsAPI.uploadToDocumentControl(formData);
-    
-    if (response.data && response.data.document) {
-      // Success - document saved to local storage and database
-      console.log('Document uploaded successfully:', response.data);
-      
-      // Store file info in local state (for display purposes)
-      setFiles((previous) => {
-        const existing = previous[selectedDocType];
-        const arr = Array.isArray(existing)
-          ? existing
-          : existing
-          ? [existing]
-          : [];
-        
-        // Store file object with database info
-        const fileWithInfo = {
-          ...stagedFile,
-          documentId: response.data.document.id,
-          filePath: response.data.document.filePath,
-          name: stagedFile.name,
-        };
-        
-        return {
-          ...previous,
-          [selectedDocType]: [...arr, fileWithInfo],
-        };
-      });
-      
-      // Clear staged file
-      setStagedFile(null);
-      clearFieldError(selectedDocType);
-      
-      // Show success message
-      showPopupMessage(
-        `${documentOptions.find(d => d.id === selectedDocType)?.label} uploaded successfully`,
-        'info'
-      );
-    }
-  } catch (error) {
-    console.error('Upload error:', error);
-    
-    // Handle different error types
-    let errorMessage = 'Failed to upload document. Please try again.';
-    
-    if (error.response) {
-      const status = error.response.status;
-      const data = error.response.data;
-      
-      if (status === 400) {
-        errorMessage = data?.error || 'Invalid file or missing reference information.';
-      } else if (status === 401) {
-        errorMessage = 'Authentication failed. Please sign in again.';
-      } else if (status === 413) {
-        errorMessage = 'File is too large. Maximum size is 5MB.';
-      } else if (data?.error) {
-        errorMessage = data.error;
+    // Show loading state
+    setLoading(true);
+
+    try {
+      // Prepare FormData for API call
+      const formData = new FormData();
+      formData.append("file", stagedFile);
+      formData.append("document_type", selectedDocType);
+
+      // Add reference fields based on what's available
+      if (formData.vehicleNumber) {
+        formData.append("vehicle_number", formData.vehicleNumber.trim());
       }
-    } else if (error.request) {
-      errorMessage = 'Network error. Please check your connection.';
-    }
-    
-    setErrors((previous) => ({
-      ...previous,
-      staged: errorMessage,
-    }));
-    
-    showPopupMessage(errorMessage, 'warning');
-  } finally {
-    setLoading(false);
-  }
-};
+      if (formData.poNumber) {
+        formData.append("po_number", formData.poNumber.trim());
+      }
+      if (formData.driverPhone) {
+        formData.append("driver_phone", formData.driverPhone);
+      }
+      if (formData.helperPhone) {
+        formData.append("helper_phone", formData.helperPhone);
+      }
 
-  const handleClearUploaded = (field, index = null) => {
+      // Call API to upload document
+      const response = await documentsAPI.uploadToDocumentControl(formData);
+
+      if (response.data && response.data.document) {
+        // Success - document saved to local storage and database
+        console.log("Document uploaded successfully:", response.data);
+
+        // Store file info in local state (for display purposes)
+        setFiles((previous) => {
+          const existing = previous[selectedDocType];
+          const arr = Array.isArray(existing)
+            ? existing
+            : existing
+            ? [existing]
+            : [];
+
+          // Store file object with database info
+          const fileWithInfo = {
+            ...stagedFile,
+            documentId: response.data.document.id,
+            filePath: response.data.document.filePath,
+            name: stagedFile.name,
+          };
+
+          return {
+            ...previous,
+            [selectedDocType]: [...arr, fileWithInfo],
+          };
+        });
+
+        // Clear staged file
+        setStagedFile(null);
+        clearFieldError(selectedDocType);
+
+        // Show success message
+        showPopupMessage(
+          `${
+            documentOptions.find((d) => d.id === selectedDocType)?.label
+          } uploaded successfully`,
+          "info"
+        );
+      }
+    } catch (error) {
+      console.error("Upload error:", error);
+
+      // Handle different error types
+      let errorMessage = "Failed to upload document. Please try again.";
+
+      if (error.response) {
+        const status = error.response.status;
+        const data = error.response.data;
+
+        if (status === 400) {
+          errorMessage =
+            data?.error || "Invalid file or missing reference information.";
+        } else if (status === 401) {
+          errorMessage = "Authentication failed. Please sign in again.";
+        } else if (status === 413) {
+          errorMessage = "File is too large. Maximum size is 5MB.";
+        } else if (data?.error) {
+          errorMessage = data.error;
+        }
+      } else if (error.request) {
+        errorMessage = "Network error. Please check your connection.";
+      }
+
+      setErrors((previous) => ({
+        ...previous,
+        staged: errorMessage,
+      }));
+
+      showPopupMessage(errorMessage, "warning");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClearUploaded = async (field, index = null) => {
+    // Get the file to be deleted
+    const fileToDelete = Array.isArray(files[field])
+      ? files[field][index]
+      : files[field];
+
+    // Check if file has a documentId (meaning it was uploaded to database)
+    if (fileToDelete?.documentId) {
+      try {
+        setLoading(true);
+
+        // Call API to delete from DocumentControl table
+        const response = await documentsAPI.deleteFromDocumentControl(
+          fileToDelete.documentId
+        );
+
+        console.log("Document deleted from database:", response.data);
+
+        showPopupMessage(
+          response.data.message || "Document deleted successfully",
+          "info"
+        );
+      } catch (error) {
+        console.error("Failed to delete document:", error);
+
+        // Show error but still remove from local state
+        const errorMessage =
+          error.response?.data?.error ||
+          "Failed to delete document from database";
+        showPopupMessage(errorMessage, "warning");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    // Remove from local state
     setFiles((previous) => {
       const copy = { ...previous };
       if (!Array.isArray(copy[field])) return copy;
@@ -902,6 +940,7 @@ const CustomerPortal = () => {
       }
       return copy;
     });
+
     clearFieldError(field);
   };
 

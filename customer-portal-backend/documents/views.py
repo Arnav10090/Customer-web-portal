@@ -27,6 +27,60 @@ class CustomerDocumentViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(customer_email=customer_email)
         return queryset
     
+    @action(detail=False, methods=['delete'], url_path='delete-from-control/(?P<document_id>[^/.]+)')
+    def delete_from_document_control(self, request, document_id=None):
+        """
+        Delete document from DocumentControl table and remove file from storage
+        
+        DELETE /api/documents/delete-from-control/{document_id}/
+        
+        Response:
+        {
+            "message": "Document deleted successfully",
+            "document_id": 123
+        }
+        """
+        if not document_id:
+            return Response({
+                "error": "Document ID is required"
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Find the document in DocumentControl
+            document = DocumentControl.objects.get(id=document_id)
+            
+            # Store file path before deletion
+            file_path = document.filePath
+            document_name = document.name
+            document_type = document.get_type_display()
+            
+            # Delete the document record from database
+            document.delete()
+            
+            # Delete the physical file from storage
+            if file_path and os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                except OSError as e:
+                    # Log error but don't fail the request
+                    print(f"Warning: Could not delete file {file_path}: {e}")
+            
+            return Response({
+                "message": f"{document_type} deleted successfully",
+                "document_id": document_id,
+                "document_name": document_name
+            }, status=status.HTTP_200_OK)
+        
+        except DocumentControl.DoesNotExist:
+            return Response({
+                "error": "Document not found"
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        except Exception as e:
+            return Response({
+                "error": f"Failed to delete document: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     @action(detail=False, methods=['post'], url_path='upload-to-control')
     def upload_to_document_control(self, request):
         """

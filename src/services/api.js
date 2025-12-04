@@ -123,6 +123,14 @@ export const documentsAPI = {
       headers: { "Content-Type": "multipart/form-data" },
     }),
 
+  /**
+   * Delete document from DocumentControl table and remove file from storage
+   * @param {number} documentId - The ID of the document to delete
+   * @returns {Promise} - Response with success message
+   */
+  deleteFromDocumentControl: (documentId) =>
+    api.delete(`/documents/delete-from-control/${documentId}/`),
+
   getDocument: (id) => api.get(`/documents/${id}/`),
 
   deleteDocument: (id) => api.delete(`/documents/${id}/`),
