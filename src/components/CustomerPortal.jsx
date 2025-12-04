@@ -406,6 +406,8 @@ const CustomerPortal = () => {
       const response = await vehiclesAPI.createOrGetVehicle(vehicleNumber);
       const { driver, helper, po_number, documents } = response.data;
 
+      console.log("Vehicle data fetched:", response.data); // Debug log
+
       // Auto-fill PO number if available
       if (po_number) {
         setFormData((prev) => ({
@@ -437,20 +439,68 @@ const CustomerPortal = () => {
         showPopupMessage(`Helper info auto-filled: ${helper.name}`, "info");
       }
 
-      // Show which documents are already uploaded
+      // Process and display documents
       if (documents && documents.length > 0) {
+        console.log("Documents found:", documents); // Debug log
+
+        // Map document types to frontend field names
+        const docTypeMapping = {
+          vehicle_registration: "vehicleRegistration",
+          vehicle_insurance: "vehicleInsurance",
+          vehicle_puc: "vehiclePuc",
+          driver_aadhar: "driverAadhar",
+          helper_aadhar: "helperAadhar",
+          po: "po",
+          do: "do",
+          before_weighing: "beforeWeighing",
+          after_weighing: "afterWeighing",
+        };
+
+        // Create file objects for each document
+        const newFiles = { ...initialFiles };
+
+        documents.forEach((doc) => {
+          const frontendType = docTypeMapping[doc.type];
+          if (frontendType) {
+            // Create a file-like object with document info
+            const fileObj = {
+              name: doc.name || `${doc.type_display}.pdf`,
+              documentId: doc.id,
+              filePath: doc.filePath,
+              type: "application/pdf", // Default type
+              size: 0, // We don't have size from backend
+              uploaded: true, // Mark as already uploaded
+              fromDatabase: true, // Flag to indicate this is from database
+            };
+
+            // Add to the appropriate document type array
+            if (!newFiles[frontendType]) {
+              newFiles[frontendType] = [];
+            }
+            newFiles[frontendType] = [...newFiles[frontendType], fileObj];
+          }
+        });
+
+        setFiles(newFiles);
+
         const docList = documents
           .map((d) => d.type_display || d.type)
           .join(", ");
         showPopupMessage(`Documents found: ${docList}`, "info");
 
-        // Mark these documents as already uploaded
+        // Store documents info for display
         setAutoFillData({ driver, helper, po_number, documents });
       } else {
+        console.log("No documents found for this vehicle"); // Debug log
         setAutoFillData({ driver, helper, po_number, documents: [] });
       }
 
-      if (!driver && !helper && !po_number) {
+      if (
+        !driver &&
+        !helper &&
+        !po_number &&
+        (!documents || documents.length === 0)
+      ) {
         showPopupMessage(
           "No previous data found. Please enter manually.",
           "info"
@@ -2595,26 +2645,44 @@ const CustomerPortal = () => {
 
               {currentStep === 2 && (
                 <>
+                  {/* Show documents from database */}
                   {autoFillData &&
                     autoFillData.documents &&
                     autoFillData.documents.length > 0 && (
-                      <div className="mb-4 flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-                        <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
-                        <div>
-                          <p className="font-semibold">
-                            Previously uploaded documents found:
-                          </p>
-                          <ul className="mt-1 list-disc list-inside">
-                            {autoFillData.documents.map((doc, idx) => (
-                              <li key={idx}>
-                                {doc.type_display || doc.type} - {doc.name}
-                              </li>
-                            ))}
-                          </ul>
-                          <p className="mt-2 text-xs">
-                            Upload new documents below to add more or replace
-                            existing ones.
-                          </p>
+                      <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-4">
+                        <div className="flex items-start gap-3">
+                          <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-green-600" />
+                          <div className="flex-1">
+                            <p className="font-semibold text-sm text-green-800">
+                              Previously uploaded documents:
+                            </p>
+                            <div className="mt-2 space-y-2">
+                              {autoFillData.documents.map((doc, idx) => (
+                                <div
+                                  key={idx}
+                                  className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <FileText className="h-4 w-4 text-blue-600" />
+                                    <span className="font-medium text-gray-900">
+                                      {doc.type_display || doc.type}
+                                    </span>
+                                    <span className="text-xs text-gray-500">
+                                      ({doc.name})
+                                    </span>
+                                  </div>
+                                  <span className="text-xs text-green-600">
+                                    ✓ Uploaded
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                            <p className="mt-2 text-xs text-green-700">
+                              These documents are already in the system. Upload
+                              new documents below to add more or replace
+                              existing ones.
+                            </p>
+                          </div>
                         </div>
                       </div>
                     )}

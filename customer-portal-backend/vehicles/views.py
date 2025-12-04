@@ -63,7 +63,7 @@ class VehicleViewSet(viewsets.ModelViewSet):
         
         # Get the most recent submission for this vehicle to auto-fill
         from submissions.models import GateEntrySubmission
-        from podrivervehicletagging.models import PODriverVehicleTagging
+        from podrivervehicletagging.models import PODriverVehicleTagging, DriverVehicleTagging
         
         latest_submission = GateEntrySubmission.objects.filter(
             vehicle=vehicle
@@ -96,23 +96,63 @@ class VehicleViewSet(viewsets.ModelViewSet):
                 }
             
             # Get PO number from the latest submission
-            # Find the PODriverVehicleTagging that links to this submission's driver-vehicle combo
             try:
-                po_tagging = PODriverVehicleTagging.objects.filter(
-                    driverVehicleTaggingId__vehicleId=vehicle,
-                    driverVehicleTaggingId__driverId=latest_submission.driver
-                ).select_related('poId').order_by('-created').first()
+                # Find PODriverVehicleTagging through DriverVehicleTagging
+                driver_vehicle_tagging = DriverVehicleTagging.objects.filter(
+                    vehicleId=vehicle,
+                    driverId=latest_submission.driver
+                ).order_by('-created').first()
                 
-                if po_tagging and po_tagging.poId:
-                    po_number = po_tagging.poId.id  # PO number is the ID field
+                if driver_vehicle_tagging:
+                    po_tagging = PODriverVehicleTagging.objects.filter(
+                        driverVehicleTaggingId=driver_vehicle_tagging
+                    ).select_related('poId').order_by('-created').first()
+                    
+                    if po_tagging and po_tagging.poId:
+                        po_number = po_tagging.poId.id  # PO number is the ID field
             except Exception as e:
                 print(f"Could not fetch PO number: {e}")
         
         # Get all documents for this vehicle from DocumentControl
+        # FIXED: Get documents by vehicle ID, not just vehicle-related types
         documents = DocumentControl.objects.filter(
             referenceId=vehicle.id,
             type__in=['vehicle_registration', 'vehicle_insurance', 'vehicle_puc']
         ).order_by('-created')
+        
+        # Get driver documents if driver exists
+        if driver_data:
+            from drivers.models import DriverHelper
+            try:
+                driver = DriverHelper.objects.get(id=driver_data['id'])
+                driver_docs = DocumentControl.objects.filter(
+                    referenceId=driver.id,
+                    type='driver_aadhar'
+                ).order_by('-created')
+                documents = list(documents) + list(driver_docs)
+            except DriverHelper.DoesNotExist:
+                pass
+        
+        # Get helper documents if helper exists
+        if helper_data:
+            from drivers.models import DriverHelper
+            try:
+                helper = DriverHelper.objects.get(id=helper_data['id'])
+                helper_docs = DocumentControl.objects.filter(
+                    referenceId=helper.id,
+                    type='helper_aadhar'
+                ).order_by('-created')
+                documents = list(documents) + list(helper_docs)
+            except DriverHelper.DoesNotExist:
+                pass
+        
+        # Get PO documents if PO exists
+        if po_number:
+            po_docs = DocumentControl.objects.filter(
+                referenceId=po_number,
+                type__in=['po', 'do', 'before_weighing', 'after_weighing']
+            ).order_by('-created')
+            documents = list(documents) + list(po_docs)
         
         documents_data = DocumentControlSerializer(documents, many=True).data
         
@@ -120,7 +160,7 @@ class VehicleViewSet(viewsets.ModelViewSet):
             "vehicle": VehicleDetailsSerializer(vehicle).data,
             "driver": driver_data,
             "helper": helper_data,
-            "po_number": po_number,  # Added PO number to response
+            "po_number": po_number,
             "documents": documents_data,
             "created": created,
             "message": "New vehicle created" if created else "Existing vehicle found"
