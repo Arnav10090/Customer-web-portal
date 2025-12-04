@@ -11,6 +11,8 @@ from .qr_generator import generate_qr_code
 from vehicles.models import VehicleDetails
 from drivers.models import DriverHelper
 from documents.models import CustomerDocument
+import hashlib
+import json
 
 class GateEntrySubmissionViewSet(viewsets.ModelViewSet):
     queryset = GateEntrySubmission.objects.all()
@@ -28,6 +30,7 @@ class GateEntrySubmissionViewSet(viewsets.ModelViewSet):
         - customer_email: string
         - customer_phone: string
         - vehicle_number: string
+        - po_number: string
         - driver_name: string
         - driver_phone: string
         - driver_language: string
@@ -71,7 +74,7 @@ class GateEntrySubmissionViewSet(viewsets.ModelViewSet):
 
                 # 1. Get or create vehicle
                 vehicle, _ = VehicleDetails.objects.get_or_create(
-                    vehicle_registration_no=vehicle_number.upper()
+                    vehicleRegistrationNo=vehicle_number.upper()
                 )
 
                 # 2. Validate or create driver
@@ -92,7 +95,40 @@ class GateEntrySubmissionViewSet(viewsets.ModelViewSet):
                         language=helper_language
                     )
 
-                # 4. Create submission (without QR yet)
+                # 4. Get or create PO
+                from po_details.models import PODetails
+                po_number = serializer.validated_data.get('po_number', '').strip().upper()
+                
+                if not po_number:
+                    return Response({
+                        "error": "PO number is required"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                po, _ = PODetails.objects.get_or_create(
+                    id=po_number,
+                    defaults={'customerUserId': request.user}
+                )
+
+                # 5. Create DriverVehicleTagging
+                from podrivervehicletagging.models import DriverVehicleTagging, PODriverVehicleTagging
+                
+                driver_vehicle_tagging = DriverVehicleTagging.objects.create(
+                    driverId=driver,
+                    helperId=helper,
+                    vehicleId=vehicle,
+                    isVerified=False
+                )
+
+                # 6. Create PODriverVehicleTagging
+                po_driver_vehicle_tagging = PODriverVehicleTagging.objects.create(
+                    poId=po,
+                    driverVehicleTaggingId=driver_vehicle_tagging,
+                    rftagId=None,
+                    actReportingTime=None,
+                    exitTime=None
+                )
+
+                # 7. Create submission (without QR yet)
                 submission = GateEntrySubmission.objects.create(
                     customer_email=customer_email,
                     customer_phone=customer_phone,
@@ -101,27 +137,24 @@ class GateEntrySubmissionViewSet(viewsets.ModelViewSet):
                     helper=helper
                 )
 
-                # 5. Generate QR payload hash
-                submission.qr_payload_hash = submission.generate_payload_hash()
+                # 8. Generate QR payload hash (simplified)
+                qr_payload_data = {
+                    'po_driver_vehicle_tagging_id': po_driver_vehicle_tagging.id
+                }
+                submission.qr_payload_hash = hashlib.sha256(
+                    json.dumps(qr_payload_data, sort_keys=True).encode()
+                ).hexdigest()
 
-                # 6. Generate QR code
+                # 9. Generate QR code with only PODriverVehicleTagging ID
                 qr_payload = {
-                    'submission_id': submission.id,
-                    'customer_name': customer_email.split('@')[0],
-                    'customer_email': customer_email,
-                    'driver_name': driver.name,
-                    'driver_phone': driver.phone_no,
-                    'helper_name': helper.name if helper else '',
-                    'helper_phone': helper.phone_no if helper else '',
-                    'vehicle_number': vehicle.vehicle_registration_no,
-                    'timestamp': submission.created_at.isoformat(),
+                    'id': po_driver_vehicle_tagging.id
                 }
                 
                 qr_file = generate_qr_code(qr_payload)
                 submission.qr_code_image = qr_file
                 submission.save()
 
-                # 7. Handle document uploads
+                # 10. Handle document uploads
                 document_fields = [
                     'purchase_order', 'vehicle_registration', 'vehicle_insurance',
                     'puc', 'driver_license', 'transportation_approval',
@@ -140,19 +173,19 @@ class GateEntrySubmissionViewSet(viewsets.ModelViewSet):
                             helper=helper
                         )
 
-                # 8. Create audit log
+                # 11. Create audit log
                 AuditLog.objects.create(
                     submission=submission,
                     action='SUBMISSION_CREATED',
-                    description=f'Gate entry submission created for vehicle {vehicle.vehicle_registration_no}',
+                    description=f'Gate entry submission created for vehicle {vehicle.vehicleRegistrationNo}',
                     user_email=customer_email,
                     ip_address=self.get_client_ip(request)
                 )
 
-                # 9. Send email notification
+                # 12. Send email notification
                 self.send_qr_email(submission)
 
-                # 10. Send SMS notification (placeholder)
+                # 13. Send SMS notification (placeholder)
                 self.send_qr_sms(submission)
 
                 # Return response
@@ -160,8 +193,8 @@ class GateEntrySubmissionViewSet(viewsets.ModelViewSet):
                     "submission": {
                         "id": submission.id,
                         "qrCodeImage": request.build_absolute_uri(submission.qr_code_image.url),
-                        "vehicleNumber": submission.vehicle.vehicle_registration_no,
-                        "driverPhone": submission.driver.phone_no,
+                        "vehicleNumber": submission.vehicle.vehicleRegistrationNo,
+                        "driverPhone": submission.driver.phoneNo,
                         "status": submission.status,
                         "createdAt": submission.created_at
                     }
@@ -177,15 +210,15 @@ class GateEntrySubmissionViewSet(viewsets.ModelViewSet):
         Send QR code via email
         """
         try:
-            subject = f"Gate Entry QR Code - {submission.vehicle.vehicle_registration_no}"
+            subject = f"Gate Entry QR Code - {submission.vehicle.vehicleRegistrationNo}"
             body = f"""
 Dear Customer,
 
 Your gate entry QR code has been generated successfully.
 
-Vehicle Number: {submission.vehicle.vehicle_registration_no}
-Driver: {submission.driver.name} ({submission.driver.phone_no})
-{'Helper: ' + submission.helper.name + ' (' + submission.helper.phone_no + ')' if submission.helper else ''}
+Vehicle Number: {submission.vehicle.vehicleRegistrationNo}
+Driver: {submission.driver.name} ({submission.driver.phoneNo})
+{'Helper: ' + submission.helper.name + ' (' + submission.helper.phoneNo + ')' if submission.helper else ''}
 
 Please present this QR code at the gate entrance.
 
@@ -231,7 +264,7 @@ Gate Entry System
             # Placeholder for SMS integration
             # In production, integrate with SMS provider (Twilio, AWS SNS, etc.)
             
-            message = f"Gate Entry QR Code generated for vehicle {submission.vehicle.vehicle_registration_no}. " \
+            message = f"Gate Entry QR Code generated for vehicle {submission.vehicle.vehicleRegistrationNo}. " \
                       f"Check your email for details."
             
             # TODO: Implement actual SMS sending

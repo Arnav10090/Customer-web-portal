@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     'submissions',
     'authentication',
     'po_details',
+    'podrivervehicletagging',
 ]
 
 MIDDLEWARE = [

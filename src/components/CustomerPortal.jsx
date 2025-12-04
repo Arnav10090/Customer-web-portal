@@ -34,6 +34,17 @@ const ACCEPTED_TYPES = [
   "image/jpg",
 ];
 
+const compareDriverHelperData = (data1, data2) => {
+  return (
+    data1.driverName === data2.driverName &&
+    data1.driverPhone === data2.driverPhone &&
+    data1.driverLanguage === data2.driverLanguage &&
+    data1.helperName === data2.helperName &&
+    data1.helperPhone === data2.helperPhone &&
+    data1.helperLanguage === data2.helperLanguage
+  );
+};
+
 const languages = [
   { value: "en", label: "English (en)" },
   { value: "hi", label: "Hindi - हिंदी (hi)" },
@@ -331,30 +342,57 @@ const CustomerPortal = () => {
   const [vehicleHighlight, setVehicleHighlight] = useState(0);
   const [vehicleSaved, setVehicleSaved] = useState(false);
   const [autoFillData, setAutoFillData] = useState(null);
+  const [savedDriverHelperData, setSavedDriverHelperData] = useState(null);
 
   const docButtonRef = useRef(null);
   const docListRef = useRef(null);
   const vehicleButtonRef = useRef(null);
   const vehicleListRef = useRef(null);
 
-  // Fetch user's vehicles on component mount
+  // Fetch user's vehicles on component mount - consolidated
   useEffect(() => {
+    let isMounted = true; // Add cleanup flag
+
     const fetchMyVehicles = async () => {
+      if (!user || !user.email) return;
+
       try {
         setLoadingVehicles(true);
         const response = await vehiclesAPI.getMyVehicles();
-        setMyVehicles(response.data.vehicles || []);
+        if (isMounted) {
+          setMyVehicles(response.data.vehicles || []);
+          setVehicles(response.data.vehicles || []);
+          setErrors((prev) => ({ ...prev, vehiclesFetch: null }));
+        }
       } catch (error) {
         console.error("Failed to fetch vehicles:", error);
+        if (isMounted) {
+          if (error.response?.status === 401) {
+            console.warn(
+              "Got 401 when fetching vehicles - token may be invalid"
+            );
+            setVehicles([]);
+          } else {
+            setErrors((prev) => ({
+              ...prev,
+              vehiclesFetch:
+                "Could not load your vehicles. You can still enter them manually.",
+            }));
+          }
+        }
       } finally {
-        setLoadingVehicles(false);
+        if (isMounted) {
+          setLoadingVehicles(false);
+        }
       }
     };
 
-    if (user) {
-      fetchMyVehicles();
-    }
-  }, [user]);
+    fetchMyVehicles();
+
+    return () => {
+      isMounted = false; // Cleanup
+    };
+  }, [user?.id]); // Only trigger when user ID changes
 
   // Handle vehicle selection from dropdown
   const handleVehicleSelect = async (vehicleNumber) => {
@@ -454,51 +492,6 @@ const CustomerPortal = () => {
       setVehicleData(null);
     }
   }, [user?.id]); // Only trigger on user change, not on every render
-
-  // Fetch user's vehicles - separate effect to avoid multiple calls
-  useEffect(() => {
-    if (user && user.email) {
-      console.log("User logged in, checking token...");
-      const token = localStorage.getItem("accessToken");
-      console.log("Access token exists:", !!token);
-      if (token) {
-        console.log("Token first 20 chars:", token.substring(0, 20) + "...");
-      }
-      fetchUserVehicles();
-    }
-  }, [user?.id]); // Only trigger when user ID changes
-
-  // Fetch user's vehicles from API
-  const fetchUserVehicles = async () => {
-    try {
-      setLoadingVehicles(true);
-      console.log("Fetching vehicles for user:", user?.email);
-      const response = await vehiclesAPI.getMyVehicles();
-      console.log("Vehicles fetched successfully:", response.data);
-      setVehicles(response.data.vehicles || []);
-      setErrors((prev) => ({ ...prev, vehiclesFetch: null }));
-    } catch (error) {
-      console.error(
-        "Failed to fetch vehicles:",
-        error.response || error.message
-      );
-      // If it's a 401, it means token issue, but user is logged in so just show empty
-      if (error.response?.status === 401) {
-        console.warn("Got 401 when fetching vehicles - token may be invalid");
-        setVehicles([]);
-        // Token might be expired, no need to show error
-      } else {
-        console.error("Error details:", error.response?.data);
-        setErrors((prev) => ({
-          ...prev,
-          vehiclesFetch:
-            "Could not load your vehicles. You can still enter them manually.",
-        }));
-      }
-    } finally {
-      setLoadingVehicles(false);
-    }
-  };
 
   // Fetch complete data for selected vehicle
   const fetchVehicleData = async (vehicleRegNo) => {
@@ -644,6 +637,35 @@ const CustomerPortal = () => {
     }
     return () => document.removeEventListener("click", onHelperPrefClickAway);
   }, [helperPrefDropdownOpen]);
+
+  // Track changes to driver/helper fields to reset saved data
+  useEffect(() => {
+    if (savedDriverHelperData) {
+      const currentData = {
+        driverName: formData.driverName.trim(),
+        driverPhone: formData.driverPhone,
+        driverLanguage: formData.driverLanguage,
+        helperName: formData.helperName.trim(),
+        helperPhone: formData.helperPhone,
+        helperLanguage: formData.helperLanguage,
+      };
+
+      // If data changed from saved version, clear savedDriverHelperData
+      // so next time user clicks Continue, it will save again
+      if (!compareDriverHelperData(currentData, savedDriverHelperData)) {
+        setSavedDriverHelperData(null);
+      }
+    }
+  }, [
+    formData.driverName,
+    formData.driverPhone,
+    formData.driverLanguage,
+    formData.helperName,
+    formData.helperPhone,
+    formData.helperLanguage,
+    savedDriverHelperData,
+  ]);
+
   const [submitError, setSubmitError] = useState("");
   const [loading, setLoading] = useState(false);
   const [successData, setSuccessData] = useState(null);
@@ -1078,47 +1100,76 @@ const CustomerPortal = () => {
       }
     }
 
-    // If on step 1, save driver and helper info
+    // If on step 1, save driver and helper info ONLY if data has changed
     if (currentStep === 1) {
-      try {
-        setLoading(true);
+      // Create current data snapshot
+      const currentDriverHelperData = {
+        driverName: formData.driverName.trim(),
+        driverPhone: formData.driverPhone,
+        driverLanguage: formData.driverLanguage,
+        helperName: formData.helperName.trim(),
+        helperPhone: formData.helperPhone,
+        helperLanguage: formData.helperLanguage,
+      };
 
-        // Save driver info
-        const driverPayload = {
-          name: formData.driverName.trim(),
-          phoneNo: formData.driverPhone,
-          type: "Driver",
-          language: formData.driverLanguage,
-        };
-
-        const driverResponse = await driversAPI.validateOrCreate(driverPayload);
-        console.log("Driver saved:", driverResponse.data);
-
-        // Save helper info
-        const helperPayload = {
-          name: formData.helperName.trim(),
-          phoneNo: formData.helperPhone,
-          type: "Helper",
-          language: formData.helperLanguage,
-        };
-
-        const helperResponse = await driversAPI.validateOrCreate(helperPayload);
-        console.log("Helper saved:", helperResponse.data);
-
-        showPopupMessage(
-          "Driver and helper information saved successfully",
-          "info"
+      // Check if data has changed since last save
+      const hasChanged =
+        !savedDriverHelperData ||
+        !compareDriverHelperData(
+          currentDriverHelperData,
+          savedDriverHelperData
         );
-      } catch (error) {
-        console.error("Failed to save driver/helper:", error);
-        showPopupMessage(
-          error.response?.data?.error ||
-            "Failed to save driver/helper information",
-          "warning"
-        );
-        return; // Don't proceed if save fails
-      } finally {
-        setLoading(false);
+
+      if (hasChanged) {
+        try {
+          setLoading(true);
+
+          // Save driver info
+          const driverPayload = {
+            name: formData.driverName.trim(),
+            phoneNo: formData.driverPhone,
+            type: "Driver",
+            language: formData.driverLanguage,
+          };
+
+          const driverResponse = await driversAPI.validateOrCreate(
+            driverPayload
+          );
+          console.log("Driver saved:", driverResponse.data);
+
+          // Save helper info
+          const helperPayload = {
+            name: formData.helperName.trim(),
+            phoneNo: formData.helperPhone,
+            type: "Helper",
+            language: formData.helperLanguage,
+          };
+
+          const helperResponse = await driversAPI.validateOrCreate(
+            helperPayload
+          );
+          console.log("Helper saved:", helperResponse.data);
+
+          // Store the saved data to compare against future changes
+          setSavedDriverHelperData(currentDriverHelperData);
+
+          showPopupMessage(
+            "Driver and helper information saved successfully",
+            "info"
+          );
+        } catch (error) {
+          console.error("Failed to save driver/helper:", error);
+          showPopupMessage(
+            error.response?.data?.error ||
+              "Failed to save driver/helper information",
+            "warning"
+          );
+          return; // Don't proceed if save fails
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        console.log("Driver/helper data unchanged, skipping API call");
       }
     }
 
@@ -1144,6 +1195,7 @@ const CustomerPortal = () => {
     setMockNotice("");
     setShowNotify(false);
     setVehicleSaved(false);
+    setSavedDriverHelperData(null);
 
     // Clear localStorage
     localStorage.removeItem("customerPortal_formData");
@@ -1248,6 +1300,15 @@ const CustomerPortal = () => {
       return;
     }
 
+    // Additional validation for PO number
+    if (!formData.poNumber || !formData.poNumber.trim()) {
+      setSubmitError(
+        "PO number is required. Please go back to Step 1 and enter it."
+      );
+      setCurrentStep(0);
+      return;
+    }
+
     // Check for missing documents
     const missingDocs = documentOptions.filter((d) => !files[d.id]);
     if (missingDocs.length > 0) {
@@ -1295,9 +1356,7 @@ const CustomerPortal = () => {
 
     // Vehicle and PO information
     payload.append("vehicle_number", formData.vehicleNumber.trim());
-    if (formData.poNumber) {
-      payload.append("po_number", formData.poNumber.trim());
-    }
+    payload.append("po_number", formData.poNumber.trim()); // Remove the if condition - make it required
 
     // Driver information
     payload.append("driver_phone", formData.driverPhone);

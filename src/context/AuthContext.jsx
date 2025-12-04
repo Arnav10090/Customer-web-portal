@@ -11,19 +11,23 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    let isMounted = true; // Add this flag
+    
     // Check if user is already logged in (from localStorage)
     const storedUser = localStorage.getItem("user");
     const accessToken = localStorage.getItem("accessToken");
     const refreshToken = localStorage.getItem("refreshToken");
 
     const validateToken = async () => {
+      if (!isMounted) return; // Add this check
+      
       // If we have a refresh token, try to refresh the access token first.
       if (storedUser && refreshToken) {
         try {
           const apiBase = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
           const resp = await axios.post(`${apiBase}/auth/token/refresh/`, { refresh: refreshToken });
           const newAccess = resp.data?.access;
-          if (newAccess) {
+          if (newAccess && isMounted) { // Add isMounted check
             localStorage.setItem('accessToken', newAccess);
             setUser(JSON.parse(storedUser));
             setIsLoggedIn(true);
@@ -31,13 +35,12 @@ export const AuthProvider = ({ children }) => {
             return;
           }
         } catch (err) {
-          // Refresh failed — fall through to clearing storage below
           console.warn('Refresh token validation failed:', err.response?.data || err.message);
         }
       }
 
       // If no refresh token, but an access token exists, try validating it directly
-      if (storedUser && accessToken) {
+      if (storedUser && accessToken && isMounted) { // Add isMounted check
         try {
           const testInstance = axios.create({
             baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api',
@@ -46,9 +49,11 @@ export const AuthProvider = ({ children }) => {
             }
           });
           await testInstance.get('/auth/user/');
-          setUser(JSON.parse(storedUser));
-          setIsLoggedIn(true);
-          setLoading(false);
+          if (isMounted) { // Add isMounted check
+            setUser(JSON.parse(storedUser));
+            setIsLoggedIn(true);
+            setLoading(false);
+          }
           return;
         } catch (err) {
           console.warn('Access token validation failed:', err.response?.data || err.message);
@@ -56,15 +61,21 @@ export const AuthProvider = ({ children }) => {
       }
 
       // No valid token found — clear storage
-      localStorage.removeItem("user");
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
-      setUser(null);
-      setIsLoggedIn(false);
-      setLoading(false);
+      if (isMounted) { // Add isMounted check
+        localStorage.removeItem("user");
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("refreshToken");
+        setUser(null);
+        setIsLoggedIn(false);
+        setLoading(false);
+      }
     };
 
     validateToken();
+    
+    return () => {
+      isMounted = false; // Cleanup flag
+    };
   }, []);
 
   const login = async (email, password) => {

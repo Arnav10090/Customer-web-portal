@@ -33,6 +33,7 @@ class SubmissionCreateSerializer(serializers.Serializer):
         error_messages={'invalid': 'Phone must be in format: +91XXXXXXXXXX'}
     )
     vehicle_number = serializers.CharField(max_length=50)
+    poNumber = serializers.CharField(max_length=100, required=True)
     driver_name = serializers.CharField(max_length=100)
     driver_phone = serializers.RegexField(
         regex=r'^\+91\d{10}$',
