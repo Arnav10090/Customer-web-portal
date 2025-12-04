@@ -395,127 +395,127 @@ const CustomerPortal = () => {
   }, [user?.id]); // Only trigger when user ID changes
 
   // Handle vehicle selection from dropdown
-  const handleVehicleSelect = async (vehicleNumber) => {
-    setFormData((prev) => ({ ...prev, vehicleNumber }));
-    setVehicleDropdownOpen(false);
-    setVehicleSearch("");
-    setLoadingVehicleData(true);
+const handleVehicleSelect = async (vehicleNumber) => {
+  setFormData((prev) => ({ ...prev, vehicleNumber }));
+  setVehicleDropdownOpen(false);
+  setVehicleSearch("");
+  setLoadingVehicleData(true);
 
-    try {
-      // Fetch complete vehicle data including driver, helper, PO, documents
-      const response = await vehiclesAPI.createOrGetVehicle(vehicleNumber);
-      const { driver, helper, po_number, documents } = response.data;
+  try {
+    // Fetch complete vehicle data including driver, helper, PO, documents
+    const response = await vehiclesAPI.getVehicleCompleteData(vehicleNumber);
+    const { driver, helper, po_number, documents } = response.data;
 
-      console.log("Vehicle data fetched:", response.data); // Debug log
+    console.log("Vehicle data fetched:", response.data); // Debug log
 
-      // Auto-fill PO number if available
-      if (po_number) {
-        setFormData((prev) => ({
-          ...prev,
-          poNumber: po_number,
-        }));
-        showPopupMessage(`PO Number auto-filled: ${po_number}`, "info");
-      }
-
-      // Auto-fill driver data if available
-      if (driver) {
-        setFormData((prev) => ({
-          ...prev,
-          driverName: driver.name || "",
-          driverPhone: driver.phoneNo || "",
-          driverLanguage: driver.language || "en",
-        }));
-        showPopupMessage(`Driver info auto-filled: ${driver.name}`, "info");
-      }
-
-      // Auto-fill helper data if available
-      if (helper) {
-        setFormData((prev) => ({
-          ...prev,
-          helperName: helper.name || "",
-          helperPhone: helper.phoneNo || "",
-          helperLanguage: helper.language || "en",
-        }));
-        showPopupMessage(`Helper info auto-filled: ${helper.name}`, "info");
-      }
-
-      // Process and display documents
-      if (documents && documents.length > 0) {
-        console.log("Documents found:", documents); // Debug log
-
-        // Map document types to frontend field names
-        const docTypeMapping = {
-          vehicle_registration: "vehicleRegistration",
-          vehicle_insurance: "vehicleInsurance",
-          vehicle_puc: "vehiclePuc",
-          driver_aadhar: "driverAadhar",
-          helper_aadhar: "helperAadhar",
-          po: "po",
-          do: "do",
-          before_weighing: "beforeWeighing",
-          after_weighing: "afterWeighing",
-        };
-
-        // Create file objects for each document
-        const newFiles = { ...initialFiles };
-
-        documents.forEach((doc) => {
-          const frontendType = docTypeMapping[doc.type];
-          if (frontendType) {
-            // Create a file-like object with document info
-            const fileObj = {
-              name: doc.name || `${doc.type_display}.pdf`,
-              documentId: doc.id,
-              filePath: doc.filePath,
-              type: "application/pdf", // Default type
-              size: 0, // We don't have size from backend
-              uploaded: true, // Mark as already uploaded
-              fromDatabase: true, // Flag to indicate this is from database
-            };
-
-            // Add to the appropriate document type array
-            if (!newFiles[frontendType]) {
-              newFiles[frontendType] = [];
-            }
-            newFiles[frontendType] = [...newFiles[frontendType], fileObj];
-          }
-        });
-
-        setFiles(newFiles);
-
-        const docList = documents
-          .map((d) => d.type_display || d.type)
-          .join(", ");
-        showPopupMessage(`Documents found: ${docList}`, "info");
-
-        // Store documents info for display
-        setAutoFillData({ driver, helper, po_number, documents });
-      } else {
-        console.log("No documents found for this vehicle"); // Debug log
-        setAutoFillData({ driver, helper, po_number, documents: [] });
-      }
-
-      if (
-        !driver &&
-        !helper &&
-        !po_number &&
-        (!documents || documents.length === 0)
-      ) {
-        showPopupMessage(
-          "No previous data found. Please enter manually.",
-          "info"
-        );
-      }
-    } catch (error) {
-      console.error("Failed to load vehicle data:", error);
-      showPopupMessage(
-        "Could not load vehicle history. Please enter details manually.",
-        "warning"
-      );
-    } finally {
-      setLoadingVehicleData(false);
+    // Auto-fill PO number if available
+    if (po_number) {
+      setFormData((prev) => ({
+        ...prev,
+        poNumber: po_number,
+      }));
+      showPopupMessage(`PO Number auto-filled: ${po_number}`, "info");
     }
-  };
+
+    // Auto-fill driver data if available
+    if (driver) {
+      setFormData((prev) => ({
+        ...prev,
+        driverName: driver.name || "",
+        driverPhone: driver.phoneNo || "",
+        driverLanguage: driver.language || "en",
+      }));
+      showPopupMessage(`Driver info auto-filled: ${driver.name}`, "info");
+    }
+
+    // Auto-fill helper data if available
+    if (helper) {
+      setFormData((prev) => ({
+        ...prev,
+        helperName: helper.name || "",
+        helperPhone: helper.phoneNo || "",
+        helperLanguage: helper.language || "en",
+      }));
+      showPopupMessage(`Helper info auto-filled: ${helper.name}`, "info");
+    }
+
+    // Process and display documents
+    if (documents && documents.length > 0) {
+      console.log("Documents found:", documents); // Debug log
+
+      // Map document types to frontend field names
+      const docTypeMapping = {
+        vehicle_registration: "vehicleRegistration",
+        vehicle_insurance: "vehicleInsurance",
+        vehicle_puc: "vehiclePuc",
+        driver_aadhar: "driverAadhar",
+        helper_aadhar: "helperAadhar",
+        po: "po",
+        do: "do",
+        before_weighing: "beforeWeighing",
+        after_weighing: "afterWeighing",
+      };
+
+      // Create file objects for each document
+      const newFiles = { ...initialFiles };
+
+      documents.forEach((doc) => {
+        const frontendType = docTypeMapping[doc.type];
+        if (frontendType) {
+          // Create a file-like object with document info
+          const fileObj = {
+            name: doc.name || `${doc.type_display}.pdf`,
+            documentId: doc.id,
+            filePath: doc.filePath,
+            type: "application/pdf", // Default type
+            size: 0, // We don't have size from backend
+            uploaded: true, // Mark as already uploaded
+            fromDatabase: true, // Flag to indicate this is from database
+          };
+
+          // Add to the appropriate document type array
+          if (!newFiles[frontendType]) {
+            newFiles[frontendType] = [];
+          }
+          newFiles[frontendType] = [...newFiles[frontendType], fileObj];
+        }
+      });
+
+      setFiles(newFiles);
+
+      const docList = documents
+        .map((d) => d.type_display || d.type)
+        .join(", ");
+      showPopupMessage(`Documents found: ${docList}`, "info");
+
+      // Store documents info for display
+      setAutoFillData({ driver, helper, po_number, documents });
+    } else {
+      console.log("No documents found for this vehicle"); // Debug log
+      setAutoFillData({ driver, helper, po_number, documents: [] });
+    }
+
+    if (
+      !driver &&
+      !helper &&
+      !po_number &&
+      (!documents || documents.length === 0)
+    ) {
+      showPopupMessage(
+        "No previous data found. Please enter manually.",
+        "info"
+      );
+    }
+  } catch (error) {
+    console.error("Failed to load vehicle data:", error);
+    showPopupMessage(
+      "Could not load vehicle history. Please enter details manually.",
+      "warning"
+    );
+  } finally {
+    setLoadingVehicleData(false);
+  }
+};
 
   // Handle vehicle number blur (when user manually enters and tabs out)
   const handleVehicleNumberBlur = async () => {
@@ -1173,33 +1173,52 @@ const CustomerPortal = () => {
   );
 
   const handleNextStep = async () => {
-    // Validate current step fields before moving to next step
-    const currentStepFields = stepFieldMap[currentStep];
-    if (!validateFields(currentStepFields)) {
-      showPopupMessage(
-        "Please fill in all required fields before proceeding.",
-        "warning"
-      );
-      return;
-    }
+  const currentStepFields = stepFieldMap[currentStep];
+  if (!validateFields(currentStepFields)) {
+    showPopupMessage(
+      "Please fill in all required fields before proceeding.",
+      "warning"
+    );
+    return;
+  }
 
-    // If on step 0, save vehicle before continuing (only if not already saved)
-    if (currentStep === 0 && !vehicleSaved) {
-      try {
-        // Save vehicle number
-        if (formData.vehicleNumber.trim()) {
-          await vehiclesAPI.createOrGetVehicle(formData.vehicleNumber);
-          setVehicleSaved(true);
-          showPopupMessage("Vehicle details saved successfully", "info");
+  // If on step 0, save vehicle and call create-or-get API
+  if (currentStep === 0 && !vehicleSaved) {
+    try {
+      setLoading(true);
+      if (formData.vehicleNumber.trim()) {
+        const response = await vehiclesAPI.createOrGetVehicle(formData.vehicleNumber);
+        const { driver, helper } = response.data;
+        
+        // Auto-fill driver and helper for Step 2
+        const updates = {};
+        if (driver) {
+          updates.driverName = driver.name || "";
+          updates.driverPhone = driver.phoneNo || "";
+          updates.driverLanguage = driver.language || "en";
+          showPopupMessage(`Driver info auto-filled: ${driver.name}`, "info");
         }
-      } catch (error) {
-        console.error("Failed to save vehicle:", error);
-        showPopupMessage(
-          "Failed to save vehicle details, but you can continue",
-          "warning"
-        );
+        
+        if (helper) {
+          updates.helperName = helper.name || "";
+          updates.helperPhone = helper.phoneNo || "";
+          updates.helperLanguage = helper.language || "en";
+          showPopupMessage(`Helper info auto-filled: ${helper.name}`, "info");
+        }
+        
+        if (Object.keys(updates).length > 0) {
+          setFormData((prev) => ({ ...prev, ...updates }));
+        }
+        
+        setVehicleSaved(true);
       }
+    } catch (error) {
+      console.error("Failed to save vehicle:", error);
+      showPopupMessage("Failed to save vehicle details, but you can continue", "warning");
+    } finally {
+      setLoading(false);
     }
+  }
 
     // If on step 1, save driver and helper info ONLY if data has changed
     if (currentStep === 1) {
