@@ -395,128 +395,128 @@ const CustomerPortal = () => {
   }, [user?.id]); // Only trigger when user ID changes
 
   // Handle vehicle selection from dropdown
-const handleVehicleSelect = async (vehicleNumber) => {
-  setVehicleDropdownOpen(false);
-  setVehicleSearch("");
-  setLoadingVehicleData(true);
+  const handleVehicleSelect = async (vehicleNumber) => {
+    setVehicleDropdownOpen(false);
+    setVehicleSearch("");
+    setLoadingVehicleData(true);
 
-  try {
-    // Fetch complete vehicle data including driver, helper, PO, documents
-    const response = await vehiclesAPI.getVehicleCompleteData(vehicleNumber);
-    const { driver, helper, po_number, documents } = response.data;
+    try {
+      // Fetch complete vehicle data including driver, helper, PO, documents
+      const response = await vehiclesAPI.getVehicleCompleteData(vehicleNumber);
+      const { driver, helper, po_number, documents } = response.data;
 
-    console.log("Vehicle data fetched:", response.data); // Debug log
+      console.log("Vehicle data fetched:", response.data); // Debug log
 
-    // Prepare updates object
-    const updates = {
-      vehicleNumber: vehicleNumber,
-    };
-
-    // Auto-fill PO number if available
-    if (po_number) {
-      updates.poNumber = po_number;
-      showPopupMessage(`PO Number auto-filled: ${po_number}`, "info");
-    }
-
-    // Auto-fill driver data if available
-    if (driver) {
-      updates.driverName = driver.name || "";
-      updates.driverPhone = driver.phoneNo || "";
-      updates.driverLanguage = driver.language || "en";
-      showPopupMessage(`Driver info auto-filled: ${driver.name}`, "info");
-    }
-
-    // Auto-fill helper data if available
-    if (helper) {
-      updates.helperName = helper.name || "";
-      updates.helperPhone = helper.phoneNo || "";
-      updates.helperLanguage = helper.language || "en";
-      showPopupMessage(`Helper info auto-filled: ${helper.name}`, "info");
-    }
-
-    // Apply all updates at once
-    setFormData((prev) => ({
-      ...prev,
-      ...updates,
-    }));
-
-    // Process and display documents
-    if (documents && documents.length > 0) {
-      console.log("Documents found:", documents); // Debug log
-
-      // Map document types to frontend field names
-      const docTypeMapping = {
-        vehicle_registration: "vehicleRegistration",
-        vehicle_insurance: "vehicleInsurance",
-        vehicle_puc: "vehiclePuc",
-        driver_aadhar: "driverAadhar",
-        helper_aadhar: "helperAadhar",
-        po: "po",
-        do: "do",
-        before_weighing: "beforeWeighing",
-        after_weighing: "afterWeighing",
+      // Prepare updates object
+      const updates = {
+        vehicleNumber: vehicleNumber,
       };
 
-      // Create file objects for each document
-      const newFiles = { ...initialFiles };
+      // Auto-fill PO number if available
+      if (po_number) {
+        updates.poNumber = po_number;
+        showPopupMessage(`PO Number auto-filled: ${po_number}`, "info");
+      }
 
-      documents.forEach((doc) => {
-        const frontendType = docTypeMapping[doc.type];
-        if (frontendType) {
-          // Create a file-like object with document info
-          const fileObj = {
-            name: doc.name || `${doc.type_display}.pdf`,
-            documentId: doc.id,
-            filePath: doc.filePath,
-            type: "application/pdf", // Default type
-            size: 0, // We don't have size from backend
-            uploaded: true, // Mark as already uploaded
-            fromDatabase: true, // Flag to indicate this is from database
-          };
+      // Auto-fill driver data if available
+      if (driver) {
+        updates.driverName = driver.name || "";
+        updates.driverPhone = driver.phoneNo || "";
+        updates.driverLanguage = driver.language || "en";
+        showPopupMessage(`Driver info auto-filled: ${driver.name}`, "info");
+      }
 
-          // Add to the appropriate document type array
-          if (!newFiles[frontendType]) {
-            newFiles[frontendType] = [];
+      // Auto-fill helper data if available
+      if (helper) {
+        updates.helperName = helper.name || "";
+        updates.helperPhone = helper.phoneNo || "";
+        updates.helperLanguage = helper.language || "en";
+        showPopupMessage(`Helper info auto-filled: ${helper.name}`, "info");
+      }
+
+      // Apply all updates at once
+      setFormData((prev) => ({
+        ...prev,
+        ...updates,
+      }));
+
+      // Process and display documents
+      if (documents && documents.length > 0) {
+        console.log("Documents found:", documents); // Debug log
+
+        // Map document types to frontend field names
+        const docTypeMapping = {
+          vehicle_registration: "vehicleRegistration",
+          vehicle_insurance: "vehicleInsurance",
+          vehicle_puc: "vehiclePuc",
+          driver_aadhar: "driverAadhar",
+          helper_aadhar: "helperAadhar",
+          po: "po",
+          do: "do",
+          before_weighing: "beforeWeighing",
+          after_weighing: "afterWeighing",
+        };
+
+        // Create file objects for each document
+        const newFiles = { ...initialFiles };
+
+        documents.forEach((doc) => {
+          const frontendType = docTypeMapping[doc.type];
+          if (frontendType) {
+            // Create a file-like object with document info
+            const fileObj = {
+              name: doc.name || `${doc.type_display}.pdf`,
+              documentId: doc.id,
+              filePath: doc.filePath,
+              type: "application/pdf", // Default type
+              size: 0, // We don't have size from backend
+              uploaded: true, // Mark as already uploaded
+              fromDatabase: true, // Flag to indicate this is from database
+            };
+
+            // Add to the appropriate document type array
+            if (!newFiles[frontendType]) {
+              newFiles[frontendType] = [];
+            }
+            newFiles[frontendType] = [...newFiles[frontendType], fileObj];
           }
-          newFiles[frontendType] = [...newFiles[frontendType], fileObj];
-        }
-      });
+        });
 
-      setFiles(newFiles);
+        setFiles(newFiles);
 
-      const docList = documents
-        .map((d) => d.type_display || d.type)
-        .join(", ");
-      showPopupMessage(`Documents found: ${docList}`, "info");
+        const docList = documents
+          .map((d) => d.type_display || d.type)
+          .join(", ");
+        showPopupMessage(`Documents found: ${docList}`, "info");
 
-      // Store documents info for display
-      setAutoFillData({ driver, helper, po_number, documents });
-    } else {
-      console.log("No documents found for this vehicle"); // Debug log
-      setAutoFillData({ driver, helper, po_number, documents: [] });
-    }
+        // Store documents info for display
+        setAutoFillData({ driver, helper, po_number, documents });
+      } else {
+        console.log("No documents found for this vehicle"); // Debug log
+        setAutoFillData({ driver, helper, po_number, documents: [] });
+      }
 
-    if (
-      !driver &&
-      !helper &&
-      !po_number &&
-      (!documents || documents.length === 0)
-    ) {
+      if (
+        !driver &&
+        !helper &&
+        !po_number &&
+        (!documents || documents.length === 0)
+      ) {
+        showPopupMessage(
+          "No previous data found. Please enter manually.",
+          "info"
+        );
+      }
+    } catch (error) {
+      console.error("Failed to load vehicle data:", error);
       showPopupMessage(
-        "No previous data found. Please enter manually.",
-        "info"
+        "Could not load vehicle history. Please enter details manually.",
+        "warning"
       );
+    } finally {
+      setLoadingVehicleData(false);
     }
-  } catch (error) {
-    console.error("Failed to load vehicle data:", error);
-    showPopupMessage(
-      "Could not load vehicle history. Please enter details manually.",
-      "warning"
-    );
-  } finally {
-    setLoadingVehicleData(false);
-  }
-};
+  };
 
   // Handle vehicle number blur (when user manually enters and tabs out)
   const handleVehicleNumberBlur = async () => {
@@ -579,102 +579,108 @@ const handleVehicleSelect = async (vehicleNumber) => {
 
   // Replace your existing fetchVehicleData and autofillFormData with this:
 
-// Fetch complete data for selected vehicle
-const fetchVehicleData = async (vehicleRegNo) => {
-  try {
-    setLoadingVehicleData(true);
-    const response = await vehiclesAPI.getVehicleCompleteData(vehicleRegNo);
-    const data = response.data || {};
+  // Fetch complete data for selected vehicle
+  const fetchVehicleData = async (vehicleRegNo) => {
+    try {
+      setLoadingVehicleData(true);
+      const response = await vehiclesAPI.getVehicleCompleteData(vehicleRegNo);
+      const data = response.data || {};
 
-    // Save raw vehicleData for UI (used elsewhere)
-    setVehicleData(data);
+      // Save raw vehicleData for UI (used elsewhere)
+      setVehicleData(data);
 
-    // Auto-fill form data with fetched data (robust to response shapes)
-    autofillFormData(data);
+      // Auto-fill form data with fetched data (robust to response shapes)
+      autofillFormData(data);
 
-    // Also store autoFillData for documents / notifications
-    const auto = {
-      // tolerate either snake_case and camelCase, use fallback empty arrays/objects
-      driver: data.driver || (Array.isArray(data.drivers) && data.drivers[0]) || null,
-      helper: data.helper || (Array.isArray(data.helpers) && data.helpers[0]) || null,
-      po_number: data.po_number || data.poNumber || "",
-      documents: data.documents || data.document_list || [],
-    };
-    setAutoFillData(auto);
-  } catch (error) {
-    console.error("Failed to fetch vehicle data:", error);
-    setVehicleData(null);
-    setAutoFillData(null);
-  } finally {
-    setLoadingVehicleData(false);
-  }
-};
-
-// Auto-fill form fields from fetched vehicle data
-const autofillFormData = (data) => {
-  if (!data) return;
-
-  // Normalize fields (tolerate different shapes)
-  const vehicleReg =
-    (data.vehicle && data.vehicle.vehicleRegistrationNo) ||
-    data.vehicleRegistrationNo ||
-    "";
-
-  const driver =
-    data.driver || (Array.isArray(data.drivers) && data.drivers[0]) || null;
-
-  const helper =
-    data.helper || (Array.isArray(data.helpers) && data.helpers[0]) || null;
-
-  const poNumber = data.po_number || data.poNumber || "";
-
-  // Build updates to state
-  const updates = {
-    ...(vehicleReg ? { vehicleNumber: vehicleReg } : {}),
-    ...(poNumber ? { poNumber: String(poNumber) } : {}),
+      // Also store autoFillData for documents / notifications
+      const auto = {
+        // tolerate either snake_case and camelCase, use fallback empty arrays/objects
+        driver:
+          data.driver ||
+          (Array.isArray(data.drivers) && data.drivers[0]) ||
+          null,
+        helper:
+          data.helper ||
+          (Array.isArray(data.helpers) && data.helpers[0]) ||
+          null,
+        po_number: data.po_number || data.poNumber || "",
+        documents: data.documents || data.document_list || [],
+      };
+      setAutoFillData(auto);
+    } catch (error) {
+      console.error("Failed to fetch vehicle data:", error);
+      setVehicleData(null);
+      setAutoFillData(null);
+    } finally {
+      setLoadingVehicleData(false);
+    }
   };
 
-  if (driver) {
-    updates.driverName = driver.name || driver.driverName || "";
-    updates.driverPhone = driver.phoneNo || driver.driver_phone || "";
-    updates.driverLanguage = driver.language || driver.lang || "en";
-  }
+  // Auto-fill form fields from fetched vehicle data
+  const autofillFormData = (data) => {
+    if (!data) return;
 
-  if (helper) {
-    updates.helperName = helper.name || helper.helperName || "";
-    updates.helperPhone = helper.phoneNo || helper.helper_phone || "";
-    updates.helperLanguage = helper.language || helper.lang || "en";
-  }
+    // Normalize fields (tolerate different shapes)
+    const vehicleReg =
+      (data.vehicle && data.vehicle.vehicleRegistrationNo) ||
+      data.vehicleRegistrationNo ||
+      "";
 
-  // Apply updates in a single state update
-  setFormData((prev) => ({
-    ...prev,
-    ...updates,
-  }));
+    const driver =
+      data.driver || (Array.isArray(data.drivers) && data.drivers[0]) || null;
 
-  // Decide what popup to show:
-  // If user is on Step 0, show only the PO message (if present).
-  // Otherwise show combined info (or nothing if nothing to show).
-  if (currentStep === 0) {
-    if (poNumber) {
-      showPopupMessage(`PO Number auto-filled: ${poNumber}`, "info");
-    } else {
-      // optionally show nothing (keeps UI quiet). If you want fallback message, uncomment:
-      // showPopupMessage("No PO number found for this vehicle", "info");
+    const helper =
+      data.helper || (Array.isArray(data.helpers) && data.helpers[0]) || null;
+
+    const poNumber = data.po_number || data.poNumber || "";
+
+    // Build updates to state
+    const updates = {
+      ...(vehicleReg ? { vehicleNumber: vehicleReg } : {}),
+      ...(poNumber ? { poNumber: String(poNumber) } : {}),
+    };
+
+    if (driver) {
+      updates.driverName = driver.name || driver.driverName || "";
+      updates.driverPhone = driver.phoneNo || driver.driver_phone || "";
+      updates.driverLanguage = driver.language || driver.lang || "en";
     }
-    return; // don't show driver/helper messages when we're in step 0
-  }
 
-  // Not step 0: show a combined message (driver/helper/po)
-  const parts = [];
-  if (poNumber) parts.push(`PO: ${poNumber}`);
-  if (driver && driver.name) parts.push(`Driver: ${driver.name}`);
-  if (helper && helper.name) parts.push(`Helper: ${helper.name}`);
+    if (helper) {
+      updates.helperName = helper.name || helper.helperName || "";
+      updates.helperPhone = helper.phoneNo || helper.helper_phone || "";
+      updates.helperLanguage = helper.language || helper.lang || "en";
+    }
 
-  if (parts.length > 0) {
-    showPopupMessage(`Auto-filled — ${parts.join(" · ")}`, "info");
-  }
-};
+    // Apply updates in a single state update
+    setFormData((prev) => ({
+      ...prev,
+      ...updates,
+    }));
+
+    // Decide what popup to show:
+    // If user is on Step 0, show only the PO message (if present).
+    // Otherwise show combined info (or nothing if nothing to show).
+    if (currentStep === 0) {
+      if (poNumber) {
+        showPopupMessage(`PO Number auto-filled: ${poNumber}`, "info");
+      } else {
+        // optionally show nothing (keeps UI quiet). If you want fallback message, uncomment:
+        // showPopupMessage("No PO number found for this vehicle", "info");
+      }
+      return; // don't show driver/helper messages when we're in step 0
+    }
+
+    // Not step 0: show a combined message (driver/helper/po)
+    const parts = [];
+    if (poNumber) parts.push(`PO: ${poNumber}`);
+    if (driver && driver.name) parts.push(`Driver: ${driver.name}`);
+    if (helper && helper.name) parts.push(`Helper: ${helper.name}`);
+
+    if (parts.length > 0) {
+      showPopupMessage(`Auto-filled — ${parts.join(" · ")}`, "info");
+    }
+  };
 
   // Save formData to localStorage whenever it changes
   useEffect(() => {
@@ -976,26 +982,28 @@ const autofillFormData = (data) => {
 
     try {
       // Prepare FormData for API call
-      const formData = new FormData();
-      formData.append("file", stagedFile);
-      formData.append("document_type", selectedDocType);
+      const uploadFormData = new FormData();
+      uploadFormData.append("file", stagedFile);
+      uploadFormData.append("document_type", selectedDocType);
 
       // Add reference fields based on what's available
       if (formData.vehicleNumber) {
-        formData.append("vehicle_number", formData.vehicleNumber.trim());
+        uploadFormData.append("vehicle_number", formData.vehicleNumber.trim());
       }
       if (formData.poNumber) {
-        formData.append("po_number", formData.poNumber.trim());
+        uploadFormData.append("po_number", formData.poNumber.trim());
       }
       if (formData.driverPhone) {
-        formData.append("driver_phone", formData.driverPhone);
+        uploadFormData.append("driver_phone", formData.driverPhone);
       }
       if (formData.helperPhone) {
-        formData.append("helper_phone", formData.helperPhone);
+        uploadFormData.append("helper_phone", formData.helperPhone);
       }
 
       // Call API to upload document
-      const response = await documentsAPI.uploadToDocumentControl(formData);
+      const response = await documentsAPI.uploadToDocumentControl(
+        uploadFormData
+      );
 
       if (response.data && response.data.document) {
         // Success - document saved to local storage and database
@@ -1016,6 +1024,7 @@ const autofillFormData = (data) => {
             documentId: response.data.document.id,
             filePath: response.data.document.filePath,
             name: stagedFile.name,
+            fromDatabase: true,
           };
 
           return {
@@ -1078,7 +1087,16 @@ const autofillFormData = (data) => {
       : files[field];
 
     // Check if file has a documentId (meaning it was uploaded to database)
-    if (fileToDelete?.documentId) {
+    if (fileToDelete?.documentId && fileToDelete?.fromDatabase) {
+      // Ask for confirmation before deleting from database
+      const confirmDelete = window.confirm(
+        "This document is stored in the database. Do you want to delete it permanently?"
+      );
+
+      if (!confirmDelete) {
+        return;
+      }
+
       try {
         setLoading(true);
 
@@ -1228,52 +1246,68 @@ const autofillFormData = (data) => {
   );
 
   const handleNextStep = async () => {
-  const currentStepFields = stepFieldMap[currentStep];
-  if (!validateFields(currentStepFields)) {
-    showPopupMessage(
-      "Please fill in all required fields before proceeding.",
-      "warning"
-    );
-    return;
-  }
-
-  // If on step 0, save vehicle and call create-or-get API
-  if (currentStep === 0 && !vehicleSaved) {
-    try {
-      setLoading(true);
-      if (formData.vehicleNumber.trim()) {
-        const response = await vehiclesAPI.createOrGetVehicle(formData.vehicleNumber);
-        const { driver, helper } = response.data;
-        
-        // Auto-fill driver and helper for Step 2
-        const updates = {};
-        if (driver) {
-          updates.driverName = driver.name || "";
-          updates.driverPhone = driver.phoneNo || "";
-          updates.driverLanguage = driver.language || "en";
-          showPopupMessage(`Driver info auto-filled: ${driver.name}`, "info");
-        }
-        
-        if (helper) {
-          updates.helperName = helper.name || "";
-          updates.helperPhone = helper.phoneNo || "";
-          updates.helperLanguage = helper.language || "en";
-          showPopupMessage(`Helper info auto-filled: ${helper.name}`, "info");
-        }
-        
-        if (Object.keys(updates).length > 0) {
-          setFormData((prev) => ({ ...prev, ...updates }));
-        }
-        
-        setVehicleSaved(true);
-      }
-    } catch (error) {
-      console.error("Failed to save vehicle:", error);
-      showPopupMessage("Failed to save vehicle details, but you can continue", "warning");
-    } finally {
-      setLoading(false);
+    const currentStepFields = stepFieldMap[currentStep];
+    if (!validateFields(currentStepFields)) {
+      showPopupMessage(
+        "Please fill in all required fields before proceeding.",
+        "warning"
+      );
+      return;
     }
-  }
+
+    // If on step 0, save vehicle and call create-or-get API
+    if (currentStep === 0 && !vehicleSaved) {
+      try {
+        setLoading(true);
+        if (formData.vehicleNumber.trim()) {
+          const response = await vehiclesAPI.createOrGetVehicle(
+            formData.vehicleNumber
+          );
+          const { driver, helper } = response.data;
+
+          // Auto-fill driver and helper for Step 2
+          const updates = {};
+          let hasDriver = false;
+          let hasHelper = false;
+          if (driver) {
+            updates.driverName = driver.name || "";
+            updates.driverPhone = driver.phoneNo || "";
+            updates.driverLanguage = driver.language || "en";
+            hasDriver = true;
+          }
+
+          if (helper) {
+            updates.helperName = helper.name || "";
+            updates.helperPhone = helper.phoneNo || "";
+            updates.helperLanguage = helper.language || "en";
+            hasHelper = true;
+          }
+
+          if (Object.keys(updates).length > 0) {
+            setFormData((prev) => ({ ...prev, ...updates }));
+
+            // Show combined message
+            if (hasDriver && hasHelper) {
+              showPopupMessage("Driver and Helper info auto-filled", "info");
+            } else if (hasDriver) {
+              showPopupMessage("Driver info auto-filled", "info");
+            } else if (hasHelper) {
+              showPopupMessage("Helper info auto-filled", "info");
+            }
+          }
+
+          setVehicleSaved(true);
+        }
+      } catch (error) {
+        console.error("Failed to save vehicle:", error);
+        showPopupMessage(
+          "Failed to save vehicle details, but you can continue",
+          "warning"
+        );
+      } finally {
+        setLoading(false);
+      }
+    }
 
     // If on step 1, save driver and helper info ONLY if data has changed
     if (currentStep === 1) {
@@ -1345,6 +1379,89 @@ const autofillFormData = (data) => {
         }
       } else {
         console.log("Driver/helper data unchanged, skipping API call");
+      }
+    }
+
+    // If on step 1, fetch and auto-fill documents for step 2
+    if (currentStep === 1 && formData.vehicleNumber.trim()) {
+      try {
+        setLoading(true);
+
+        // Fetch vehicle complete data including documents
+        const response = await vehiclesAPI.getVehicleCompleteData(
+          formData.vehicleNumber
+        );
+        const { documents } = response.data;
+
+        if (documents && documents.length > 0) {
+          // Map document types to frontend field names
+          const docTypeMapping = {
+            vehicle_registration: "vehicleRegistration",
+            vehicle_insurance: "vehicleInsurance",
+            vehicle_puc: "vehiclePuc",
+            driver_aadhar: "driverAadhar",
+            helper_aadhar: "helperAadhar",
+            po: "po",
+            do: "do",
+            before_weighing: "beforeWeighing",
+            after_weighing: "afterWeighing",
+          };
+
+          // Create file objects for each document
+          const newFiles = { ...files };
+          const documentNames = [];
+
+          documents.forEach((doc) => {
+            const frontendType = docTypeMapping[doc.type];
+            if (frontendType) {
+              // Create a file-like object with document info
+              const fileObj = {
+                name: doc.name || `${doc.type_display}.pdf`,
+                documentId: doc.id,
+                filePath: doc.filePath,
+                type:
+                  doc.type === "application/pdf"
+                    ? "application/pdf"
+                    : "image/jpeg",
+                size: 0,
+                uploaded: true,
+                fromDatabase: true,
+              };
+
+              // Add to the appropriate document type array
+              if (!newFiles[frontendType]) {
+                newFiles[frontendType] = [];
+              }
+
+              // Check if document already exists to avoid duplicates
+              const exists = newFiles[frontendType].some(
+                (f) => f.documentId === doc.id
+              );
+
+              if (!exists) {
+                newFiles[frontendType] = [...newFiles[frontendType], fileObj];
+                documentNames.push(doc.type_display || doc.type);
+              }
+            }
+          });
+
+          setFiles(newFiles);
+
+          // Show success message with document count
+          if (documentNames.length > 0) {
+            showPopupMessage(
+              `${documentNames.length} document${
+                documentNames.length > 1 ? "s" : ""
+              } auto-filled from previous submission`,
+              "info"
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch documents:", error);
+        // Don't show error to user, they can still proceed
+      } finally {
+        setLoading(false);
       }
     }
 
@@ -3093,6 +3210,11 @@ const autofillFormData = (data) => {
                                     </p>
                                     <p className="text-xs text-gray-500">
                                       {file.name}
+                                      {file.fromDatabase && (
+                                        <span className="ml-2 text-green-600">
+                                          ✓ Previously uploaded
+                                        </span>
+                                      )}
                                     </p>
                                   </div>
                                 </div>
@@ -3102,9 +3224,14 @@ const autofillFormData = (data) => {
                                     onClick={() =>
                                       handleClearUploaded(opt.id, idx)
                                     }
-                                    className="inline-flex items-center gap-2 rounded-md border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50"
+                                    disabled={loading}
+                                    className="inline-flex items-center gap-2 rounded-md border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
                                   >
-                                    Clear
+                                    {loading ? (
+                                      <Loader className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      "Clear"
+                                    )}
                                   </button>
                                 </div>
                               </div>
