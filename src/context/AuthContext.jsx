@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }) => {
           }
         } catch (err) {
           console.warn('Refresh token validation failed:', err.response?.data || err.message);
-        }
+        } 
       }
 
       // If no refresh token, but an access token exists, try validating it directly

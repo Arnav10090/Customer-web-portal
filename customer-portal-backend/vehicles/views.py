@@ -36,7 +36,7 @@ class VehicleViewSet(viewsets.ModelViewSet):
             "count": vehicles.count()
         })
 
-    @action(detail=False, methods=['post'], url_path='create-or-get')
+    @action(detail=False, methods=['post'], url_path='create')
     def create_or_get_vehicle(self, request):
         """
         Create vehicle if doesn't exist, or get existing vehicle with complete data

@@ -16,12 +16,12 @@ class PODetailsViewSet(viewsets.ModelViewSet):
         """
         return PODetails.objects.filter(customerUserId=self.request.user)
 
-    @action(detail=False, methods=['post'], url_path='create-or-get')
+    @action(detail=False, methods=['post'], url_path='create')
     def create_or_get_po(self, request):
         """
         Create PO if doesn't exist, or get existing PO
         
-        POST /api/po-details/create-or-get/
+        POST /api/po-details/create/
         Body: {
             "po_number": "PO12345"
         }

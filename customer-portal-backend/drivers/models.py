@@ -68,7 +68,7 @@ class DriverHelper(models.Model):
             existing = DriverHelper.objects.filter(phoneNo=self.phoneNo).exclude(pk=self.pk).first()
             if existing and existing.name.lower() != self.name.lower():
                 raise ValidationError(
-                    f"Phone number {self.phoneNo} is already registered with a different name: {existing.name}"
+                    f"This Phone number is already registered with a different person"
                 )
 
     @classmethod
@@ -89,8 +89,8 @@ class DriverHelper(models.Model):
                 return existing, False  # (instance, created)
             else:
                 raise ValidationError(
-                    f"Phone number {phone_no} is already registered with name '{existing.name}'. "
-                    f"Cannot register as '{name}'."
+                    f"This Phone number is already registered with a different person. "
+                    f"Enter a different Phone number"
                 )
         except cls.DoesNotExist:
             # Create new driver/helper

@@ -167,7 +167,7 @@ export const vehiclesAPI = {
   getMyVehicles: () => api.get("/vehicles/my-vehicles/"),
 
   createOrGetVehicle: (vehicleNumber) =>
-    api.post("/vehicles/create-or-get/", { vehicle_number: vehicleNumber }),
+    api.post("/vehicles/create/", { vehicle_number: vehicleNumber }),
 
   createVehicle: (data) => api.post("/vehicles/", data),
 
@@ -189,7 +189,7 @@ export const poDetailsAPI = {
   getMyPOs: () => api.get("/po-details/my-pos/"),
 
   createOrGetPO: (poNumber) =>
-    api.post("/po-details/create-or-get/", { po_number: poNumber }),
+    api.post("/po-details/create/", { po_number: poNumber }),
 
   getPO: (id) => api.get(`/po-details/${id}/`),
 };

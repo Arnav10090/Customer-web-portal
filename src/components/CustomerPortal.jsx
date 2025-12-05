@@ -347,6 +347,7 @@ const CustomerPortal = () => {
   const docButtonRef = useRef(null);
   const docListRef = useRef(null);
   const vehicleButtonRef = useRef(null);
+  const vehicleInputRef = useRef(null);
   const vehicleListRef = useRef(null);
 
   // Fetch user's vehicles on component mount - consolidated
@@ -548,9 +549,27 @@ const CustomerPortal = () => {
     if (!poNumber || poNumber.length < 2) return;
 
     try {
-      await poDetailsAPI.createOrGetPO(poNumber);
+      setLoadingDap(true);
+      const response = await poDetailsAPI.createOrGetPO(poNumber);
+      const poData = response.data.po;
+      
+      // Extract dapName - it could be an ID or an object with properties
+      if (poData && poData.dapName) {
+        // If dapName is an object with zone name
+        if (typeof poData.dapName === 'object' && poData.dapName.name) {
+          setDapName(poData.dapName.name);
+        } else if (typeof poData.dapName === 'string') {
+          // If it's just a string ID, we might need to fetch zone details
+          setDapName(poData.dapName);
+        }
+      } else {
+        setDapName("");
+      }
     } catch (error) {
-      console.error("Failed to save PO:", error);
+      console.error("Failed to fetch PO details:", error);
+      setDapName("");
+    } finally {
+      setLoadingDap(false);
     }
   };
 
@@ -784,8 +803,9 @@ const CustomerPortal = () => {
 
   useEffect(() => {
     const onVehicleClickAway = (e) => {
-      if (!vehicleButtonRef.current) return;
-      if (vehicleButtonRef.current.contains(e.target)) return;
+      if (vehicleInputRef.current && vehicleInputRef.current.contains(e.target)) {
+        return;
+      }
       if (
         vehicleListRef.current &&
         vehicleListRef.current.contains &&
@@ -836,6 +856,8 @@ const CustomerPortal = () => {
   const [showPopup, setShowPopup] = useState(false);
   const [popupMessage, setPopupMessage] = useState("");
   const [popupVariant, setPopupVariant] = useState("info");
+  const [dapName, setDapName] = useState("");
+  const [loadingDap, setLoadingDap] = useState(false);
 
   const stepFieldMap = useMemo(
     () => ({
@@ -1255,7 +1277,7 @@ const CustomerPortal = () => {
       return;
     }
 
-    // If on step 0, save vehicle and call create-or-get API
+    // If on step 0, save vehicle and call create API
     if (currentStep === 0 && !vehicleSaved) {
       try {
         setLoading(true);
@@ -1496,6 +1518,7 @@ const CustomerPortal = () => {
     setShowNotify(false);
     setVehicleSaved(false);
     setSavedDriverHelperData(null);
+    setDapName("");
 
     // Clear localStorage
     localStorage.removeItem("customerPortal_formData");
@@ -1796,19 +1819,36 @@ const CustomerPortal = () => {
         )}
         <div className="mx-auto max-w-4xl">
           <div className="rounded-2xl bg-white p-8 shadow-xl">
-            <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-100">
-                <Scan className="h-7 w-7 text-blue-600" aria-hidden="true" />
+            <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-100">
+                  <Scan className="h-7 w-7 text-blue-600" aria-hidden="true" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900">
+                    Entry QR Code Generated
+                  </h1>
+                  <p className="text-sm text-gray-500">
+                    Share this QR code with the driver for gate access.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  Entry QR Code Generated
-                </h1>
-                <p className="text-sm text-gray-500">
-                  Share this QR code with the driver for gate access.
-                </p>
+              <div className="flex gap-2 flex-col sm:flex-row">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={logoutLoading}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-500 px-4 py-2 text-sm font-semibold text-red-600 transition-all duration-200 hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
+                >
+                  {logoutLoading ? (
+                    <Loader className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <LogOut className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  {logoutLoading ? "Signing out..." : "Sign Out"}
+                </button>
               </div>
-            </div>
+            </header>
             {mockNotice && (
               <div className="mt-6 flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
                 <AlertCircle className="mt-0.5 h-5 w-5" aria-hidden="true" />
@@ -2097,149 +2137,6 @@ const CustomerPortal = () => {
                   <div className="grid gap-6 lg:grid-cols-2">
                     <section className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
                       <div className="flex items-center gap-3">
-                        <Truck
-                          className="h-5 w-5 text-blue-600"
-                          aria-hidden="true"
-                        />
-                        <h2 className="text-lg font-semibold text-gray-800">
-                          Vehicle Information
-                        </h2>
-                      </div>
-                      <div className="mt-6 grid gap-6">
-                        <div>
-                          <label className="text-sm font-medium text-gray-700">
-                            Select Vehicle (Optional)
-                          </label>
-                          {loadingVehicles ? (
-                            <div className="mt-2 flex items-center gap-2 text-sm text-blue-600">
-                              <Loader className="h-4 w-4 animate-spin" />
-                              <span>Loading your vehicles...</span>
-                            </div>
-                          ) : vehicles.length === 0 ? (
-                            <p className="mt-2 text-sm text-gray-500">
-                              No previously registered vehicles found. Enter
-                              vehicle details below.
-                            </p>
-                          ) : (
-                            <div className="relative mt-2">
-                              <button
-                                type="button"
-                                ref={vehicleButtonRef}
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  setVehicleDropdownOpen(!vehicleDropdownOpen);
-                                }}
-                                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-left font-medium text-gray-900 transition-all duration-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center justify-between"
-                              >
-                                <span>
-                                  {selectedVehicle
-                                    ? selectedVehicle.vehicleRegistrationNo
-                                    : "Select a vehicle..."}
-                                </span>
-                                <ChevronDown className="h-4 w-4" />
-                              </button>
-
-                              {vehicleDropdownOpen && vehicles.length > 0 && (
-                                <div
-                                  ref={vehicleListRef}
-                                  className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto"
-                                >
-                                  <div className="p-2 sticky top-0 bg-white border-b">
-                                    <input
-                                      type="text"
-                                      placeholder="Search vehicle..."
-                                      value={vehicleSearch}
-                                      onChange={(e) =>
-                                        setVehicleSearch(e.target.value)
-                                      }
-                                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    />
-                                  </div>
-                                  {vehicles
-                                    .filter((v) =>
-                                      v.vehicleRegistrationNo
-                                        .toLowerCase()
-                                        .includes(vehicleSearch.toLowerCase())
-                                    )
-                                    .map((vehicle) => (
-                                      <button
-                                        type="button"
-                                        key={vehicle.id}
-                                        onClick={async (e) => {
-                                          e.preventDefault();
-                                          setSelectedVehicle(vehicle);
-                                          setVehicleDropdownOpen(false);
-                                          setVehicleSearch("");
-                                          await fetchVehicleData(
-                                            vehicle.vehicleRegistrationNo
-                                          );
-                                        }}
-                                        disabled={loadingVehicleData}
-                                        className="w-full px-4 py-3 text-left text-sm hover:bg-blue-50 transition-colors border-b last:border-b-0"
-                                      >
-                                        {vehicle.vehicleRegistrationNo}
-                                        {vehicle.remark && (
-                                          <span className="text-xs text-gray-500 ml-2">
-                                            ({vehicle.remark})
-                                          </span>
-                                        )}
-                                      </button>
-                                    ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {loadingVehicleData && (
-                            <div className="mt-2 flex items-center gap-2 text-sm text-blue-600">
-                              <Loader className="h-4 w-4 animate-spin" />
-                              <span>Loading vehicle data...</span>
-                            </div>
-                          )}
-                        </div>
-
-                        <div>
-                          <label
-                            htmlFor="vehicleNumber"
-                            className="text-sm font-medium text-gray-700"
-                          >
-                            Vehicle Number
-                            <span className="text-red-500"> *</span>
-                          </label>
-                          <input
-                            id="vehicleNumber"
-                            name="vehicleNumber"
-                            type="text"
-                            value={formData.vehicleNumber}
-                            onChange={(event) =>
-                              handleInputChange(
-                                "vehicleNumber",
-                                event.target.value
-                              )
-                            }
-                            placeholder="Enter vehicle number"
-                            className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-semibold tracking-wide text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                              errors.vehicleNumber
-                                ? "border-red-400 bg-red-50 placeholder:text-red-400"
-                                : "border-gray-300 bg-white"
-                            }`}
-                            autoComplete="off"
-                          />
-
-                          {errors.vehicleNumber && (
-                            <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
-                              <AlertCircle
-                                className="h-4 w-4"
-                                aria-hidden="true"
-                              />
-                              <span>{errors.vehicleNumber}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </section>
-
-                    <section className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
-                      <div className="flex items-center gap-3">
                         <FileText
                           className="h-5 w-5 text-blue-600"
                           aria-hidden="true"
@@ -2264,6 +2161,7 @@ const CustomerPortal = () => {
                             onChange={(event) =>
                               handleInputChange("poNumber", event.target.value)
                             }
+                            onBlur={handlePONumberBlur}
                             placeholder="Enter PO number"
                             className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-semibold tracking-wide text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
                               errors.poNumber
@@ -2279,6 +2177,139 @@ const CustomerPortal = () => {
                                 aria-hidden="true"
                               />
                               <span>{errors.poNumber}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <label
+                            htmlFor="dapName"
+                            className="text-sm font-medium text-gray-700"
+                          >
+                            Delivery At Place (DAP)
+                          </label>
+                          <div className="mt-2 relative">
+                            <input
+                              id="dapName"
+                              name="dapName"
+                              type="text"
+                              value={dapName}
+                              readOnly
+                              placeholder="DAP"
+                              className="w-full rounded-xl border border-gray-300 bg-gray-100 px-4 py-3 text-sm font-medium text-gray-900 cursor-not-allowed"
+                            />
+                            {loadingDap && (
+                              <div className="absolute right-4 top-3">
+                                <Loader className="h-4 w-4 animate-spin text-blue-600" />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
+                      <div className="flex items-center gap-3">
+                        <Truck
+                          className="h-5 w-5 text-blue-600"
+                          aria-hidden="true"
+                        />
+                        <h2 className="text-lg font-semibold text-gray-800">
+                          Vehicle Information
+                        </h2>
+                      </div>
+                      <div className="mt-6 grid gap-6">
+                        <div>
+                          <label className="text-sm font-medium text-gray-700">
+                            Vehicle Number<span className="text-red-500"> *</span>
+                          </label>
+                          {loadingVehicles ? (
+                            <div className="mt-2 flex items-center gap-2 text-sm text-blue-600">
+                              <Loader className="h-4 w-4 animate-spin" />
+                              <span>Loading your vehicles...</span>
+                            </div>
+                          ) : (
+                            <>
+                              {vehicles.length === 0 && (
+                                <p className="mt-2 mb-3 text-sm text-gray-500">
+                                  No previously registered vehicles found. You can enter a new vehicle number below.
+                                </p>
+                              )}
+                              <div className="relative mt-2">
+                                <input
+                                  ref={vehicleInputRef}
+                                  type="text"
+                                  placeholder="Search or type vehicle number..."
+                                  value={vehicleSearch}
+                                  onChange={(e) => {
+                                    setVehicleSearch(e.target.value);
+                                    setFormData((prev) => ({
+                                      ...prev,
+                                      vehicleNumber: e.target.value,
+                                    }));
+                                    setVehicleDropdownOpen(true);
+                                  }}
+                                  onFocus={() => setVehicleDropdownOpen(true)}
+                                  onBlur={() => {
+                                    // Keep the vehicle number in form data even after blur
+                                    if (vehicleSearch && !selectedVehicle) {
+                                      setFormData((prev) => ({
+                                        ...prev,
+                                        vehicleNumber: vehicleSearch,
+                                      }));
+                                    }
+                                  }}
+                                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                                />
+                                <ChevronDown className="absolute right-4 top-3.5 h-4 w-4 text-gray-400 pointer-events-none" />
+
+                                {vehicleDropdownOpen && vehicles.length > 0 && (
+                                  <div
+                                    ref={vehicleListRef}
+                                    className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto"
+                                  >
+                                    {vehicles
+                                      .filter((v) =>
+                                        v.vehicleRegistrationNo
+                                          .toLowerCase()
+                                          .includes(vehicleSearch.toLowerCase())
+                                      )
+                                      .map((vehicle) => (
+                                        <button
+                                          type="button"
+                                          key={vehicle.id}
+                                          onClick={async (e) => {
+                                            e.preventDefault();
+                                            setSelectedVehicle(vehicle);
+                                            setVehicleSearch("");
+                                            setVehicleDropdownOpen(false);
+                                            setFormData((prev) => ({
+                                              ...prev,
+                                              vehicleNumber: vehicle.vehicleRegistrationNo,
+                                            }));
+                                            await fetchVehicleData(
+                                              vehicle.vehicleRegistrationNo
+                                            );
+                                          }}
+                                          disabled={loadingVehicleData}
+                                          className="w-full px-4 py-3 text-left text-sm hover:bg-blue-50 transition-colors border-b last:border-b-0 disabled:opacity-50"
+                                        >
+                                          {vehicle.vehicleRegistrationNo}
+                                          {vehicle.remark && (
+                                            <span className="text-xs text-gray-500 ml-2">
+                                              ({vehicle.remark})
+                                            </span>
+                                          )}
+                                        </button>
+                                      ))}
+                                  </div>
+                                )}
+                              </div>
+                            </>
+                          )}
+                          {loadingVehicleData && (
+                            <div className="mt-2 flex items-center gap-2 text-sm text-blue-600">
+                              <Loader className="h-4 w-4 animate-spin" />
+                              <span>Loading vehicle data...</span>
                             </div>
                           )}
                         </div>
