@@ -338,6 +338,12 @@ const CustomerPortal = () => {
   const [vehicleData, setVehicleData] = useState(null);
   const [loadingVehicleData, setLoadingVehicleData] = useState(false);
 
+  // PO dropdown state
+  const [poNumbers, setPoNumbers] = useState([]);
+  const [poDropdownOpen, setPoDropdownOpen] = useState(false);
+  const [poSearch, setPoSearch] = useState("");
+  const [loadingPos, setLoadingPos] = useState(false);
+
   const [myVehicles, setMyVehicles] = useState([]);
   const [vehicleHighlight, setVehicleHighlight] = useState(0);
   const [vehicleSaved, setVehicleSaved] = useState(false);
@@ -349,6 +355,8 @@ const CustomerPortal = () => {
   const vehicleButtonRef = useRef(null);
   const vehicleInputRef = useRef(null);
   const vehicleListRef = useRef(null);
+  const poInputRef = useRef(null);
+  const poListRef = useRef(null);
 
   // Fetch user's vehicles on component mount - consolidated
   useEffect(() => {
@@ -395,6 +403,51 @@ const CustomerPortal = () => {
     };
   }, [user?.id]); // Only trigger when user ID changes
 
+  // Fetch user's PO numbers on component mount
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchMyPOs = async () => {
+      if (!user || !user.email) return;
+
+      try {
+        setLoadingPos(true);
+        const response = await poDetailsAPI.getMyPOs();
+        if (isMounted) {
+          const poList = response.data.pos || [];
+          setPoNumbers(poList);
+          setErrors((prev) => ({ ...prev, poFetch: null }));
+        }
+      } catch (error) {
+        console.error("Failed to fetch PO numbers:", error);
+        if (isMounted) {
+          if (error.response?.status === 401) {
+            console.warn(
+              "Got 401 when fetching PO numbers - token may be invalid"
+            );
+            setPoNumbers([]);
+          } else {
+            setErrors((prev) => ({
+              ...prev,
+              poFetch:
+                "Could not load your PO numbers. You can still enter them manually.",
+            }));
+          }
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingPos(false);
+        }
+      }
+    };
+
+    fetchMyPOs();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id]);
+
   // Handle vehicle selection from dropdown
   const handleVehicleSelect = async (vehicleNumber) => {
     setVehicleDropdownOpen(false);
@@ -412,12 +465,6 @@ const CustomerPortal = () => {
       const updates = {
         vehicleNumber: vehicleNumber,
       };
-
-      // Auto-fill PO number if available
-      if (po_number) {
-        updates.poNumber = po_number;
-        showPopupMessage(`PO Number auto-filled: ${po_number}`, "info");
-      }
 
       // Auto-fill driver data if available
       if (driver) {
@@ -819,6 +866,26 @@ const CustomerPortal = () => {
     }
     return () => document.removeEventListener("click", onVehicleClickAway);
   }, [vehicleDropdownOpen]);
+
+  // Handle clicking outside PO dropdown to close it
+  useEffect(() => {
+    const onPoClickAway = (e) => {
+      if (poInputRef.current && poInputRef.current.contains(e.target)) {
+        return;
+      }
+      if (
+        poListRef.current &&
+        poListRef.current.contains &&
+        poListRef.current.contains(e.target)
+      )
+        return;
+      setPoDropdownOpen(false);
+    };
+    if (poDropdownOpen) {
+      document.addEventListener("click", onPoClickAway);
+    }
+    return () => document.removeEventListener("click", onPoClickAway);
+  }, [poDropdownOpen]);
 
   // Track changes to driver/helper fields to reset saved data
   useEffect(() => {
@@ -1519,6 +1586,8 @@ const CustomerPortal = () => {
     setVehicleSaved(false);
     setSavedDriverHelperData(null);
     setDapName("");
+    setPoSearch("");
+    setVehicleSearch("");
 
     // Clear localStorage
     localStorage.removeItem("customerPortal_formData");
@@ -2147,29 +2216,90 @@ const CustomerPortal = () => {
                       </div>
                       <div className="mt-6 grid gap-6">
                         <div>
-                          <label
-                            htmlFor="poNumber"
-                            className="text-sm font-medium text-gray-700"
-                          >
+                          <label className="text-sm font-medium text-gray-700">
                             PO Number<span className="text-red-500"> *</span>
                           </label>
-                          <input
-                            id="poNumber"
-                            name="poNumber"
-                            type="text"
-                            value={formData.poNumber}
-                            onChange={(event) =>
-                              handleInputChange("poNumber", event.target.value)
-                            }
-                            onBlur={handlePONumberBlur}
-                            placeholder="Enter PO number"
-                            className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-semibold tracking-wide text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                              errors.poNumber
-                                ? "border-red-400 bg-red-50 placeholder:text-red-400"
-                                : "border-gray-300 bg-white"
-                            }`}
-                            autoComplete="off"
-                          />
+                          {loadingPos ? (
+                            <div className="mt-2 flex items-center gap-2 text-sm text-blue-600">
+                              <Loader className="h-4 w-4 animate-spin" />
+                              <span>Loading your PO numbers...</span>
+                            </div>
+                          ) : (
+                            <>
+                              {poNumbers.length === 0 && (
+                                <p className="mt-2 mb-3 text-sm text-gray-500">
+                                  No previously registered PO numbers found. You can enter a new PO number below.
+                                </p>
+                              )}
+                              <div className="relative mt-2">
+                                <input
+                                  ref={poInputRef}
+                                  type="text"
+                                  placeholder="Search or type PO number..."
+                                  value={poSearch}
+                                  onChange={(e) => {
+                                    setPoSearch(e.target.value);
+                                    setFormData((prev) => ({
+                                      ...prev,
+                                      poNumber: e.target.value,
+                                    }));
+                                    setPoDropdownOpen(true);
+                                  }}
+                                  onFocus={() => setPoDropdownOpen(true)}
+                                  onBlur={() => {
+                                    // Keep the PO number in form data even after blur
+                                    if (poSearch) {
+                                      setFormData((prev) => ({
+                                        ...prev,
+                                        poNumber: poSearch,
+                                      }));
+                                    }
+                                  }}
+                                  className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-semibold tracking-wide text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                                    errors.poNumber
+                                      ? "border-red-400 bg-red-50 placeholder:text-red-400"
+                                      : "border-gray-300 bg-white"
+                                  }`}
+                                  autoComplete="off"
+                                />
+                                <ChevronDown className="absolute right-4 top-5 h-4 w-4 text-gray-400 pointer-events-none" />
+
+                                {poDropdownOpen && poNumbers.length > 0 && (
+                                  <div
+                                    ref={poListRef}
+                                    className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto"
+                                  >
+                                    {poNumbers
+                                      .filter((po) =>
+                                        po.id
+                                          .toLowerCase()
+                                          .includes(poSearch.toLowerCase())
+                                      )
+                                      .map((po) => (
+                                        <button
+                                          type="button"
+                                          key={po.id}
+                                          onClick={async (e) => {
+                                            e.preventDefault();
+                                            setPoSearch(po.id);
+                                            setPoDropdownOpen(false);
+                                            setFormData((prev) => ({
+                                              ...prev,
+                                              poNumber: po.id,
+                                            }));
+                                            // Fetch DAP data when PO is selected
+                                            await handlePONumberBlur();
+                                          }}
+                                          className="w-full px-4 py-3 text-left text-sm hover:bg-blue-50 transition-colors border-b last:border-b-0 disabled:opacity-50"
+                                        >
+                                          {po.id}
+                                        </button>
+                                      ))}
+                                  </div>
+                                )}
+                              </div>
+                            </>
+                          )}
                           {errors.poNumber && (
                             <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
                               <AlertCircle
@@ -2280,7 +2410,7 @@ const CustomerPortal = () => {
                                           onClick={async (e) => {
                                             e.preventDefault();
                                             setSelectedVehicle(vehicle);
-                                            setVehicleSearch("");
+                                            setVehicleSearch(vehicle.vehicleRegistrationNo);
                                             setVehicleDropdownOpen(false);
                                             setFormData((prev) => ({
                                               ...prev,
@@ -2329,7 +2459,7 @@ const CustomerPortal = () => {
                     </div>
                   )}
 
-                  {autoFillData && autoFillData.po_number && (
+                  {autoFillData && (autoFillData.driver || autoFillData.helper) && (
                     <div className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
                       <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
                       <div>
@@ -2337,7 +2467,6 @@ const CustomerPortal = () => {
                           Auto-filled from previous submission:
                         </p>
                         <ul className="mt-1 list-disc list-inside">
-                          <li>PO Number: {autoFillData.po_number}</li>
                           {autoFillData.driver && (
                             <li>Driver: {autoFillData.driver.name}</li>
                           )}
