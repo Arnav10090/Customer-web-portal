@@ -115,45 +115,44 @@ class VehicleViewSet(viewsets.ModelViewSet):
         
         # Get all documents for this vehicle from DocumentControl
         # FIXED: Get documents by vehicle ID, not just vehicle-related types
-        documents = DocumentControl.objects.filter(
+        documents = list(DocumentControl.objects.filter(
             referenceId=vehicle.id,
             type__in=['vehicle_registration', 'vehicle_insurance', 'vehicle_puc']
-        ).order_by('-created')
-        
+        ).order_by('-created'))
+
         # Get driver documents if driver exists
         if driver_data:
-            from drivers.models import DriverHelper
             try:
-                driver = DriverHelper.objects.get(id=driver_data['id'])
                 driver_docs = DocumentControl.objects.filter(
-                    referenceId=driver.id,
+                    referenceId=driver_data['id'],
                     type='driver_aadhar'
                 ).order_by('-created')
-                documents = list(documents) + list(driver_docs)
-            except DriverHelper.DoesNotExist:
-                pass
-        
+                documents.extend(list(driver_docs))
+            except Exception as e:
+                print(f"Could not fetch driver documents: {e}")
+
         # Get helper documents if helper exists
         if helper_data:
-            from drivers.models import DriverHelper
             try:
-                helper = DriverHelper.objects.get(id=helper_data['id'])
                 helper_docs = DocumentControl.objects.filter(
-                    referenceId=helper.id,
+                    referenceId=helper_data['id'],
                     type='helper_aadhar'
                 ).order_by('-created')
-                documents = list(documents) + list(helper_docs)
-            except DriverHelper.DoesNotExist:
-                pass
-        
+                documents.extend(list(helper_docs))
+            except Exception as e:
+                print(f"Could not fetch helper documents: {e}")
+
         # Get PO documents if PO exists
         if po_number:
-            po_docs = DocumentControl.objects.filter(
-                referenceId=po_number,
-                type__in=['po', 'do', 'before_weighing', 'after_weighing']
-            ).order_by('-created')
-            documents = list(documents) + list(po_docs)
-        
+            try:
+                po_docs = DocumentControl.objects.filter(
+                    referenceId=po_number,
+                    type__in=['po', 'do', 'before_weighing', 'after_weighing']
+                ).order_by('-created')
+                documents.extend(list(po_docs))
+            except Exception as e:
+                print(f"Could not fetch PO documents: {e}")
+
         documents_data = DocumentControlSerializer(documents, many=True).data
         
         return Response({
@@ -239,10 +238,43 @@ class VehicleViewSet(viewsets.ModelViewSet):
                 print(f"Could not fetch PO number: {e}")
         
         # Get documents from DocumentControl
-        documents = DocumentControl.objects.filter(
+        documents = list(DocumentControl.objects.filter(
             referenceId=vehicle.id,
             type__in=['vehicle_registration', 'vehicle_insurance', 'vehicle_puc']
-        ).order_by('-created')
+        ).order_by('-created'))
+
+        # Get driver documents if driver exists
+        if driver_data:
+            try:
+                driver_docs = DocumentControl.objects.filter(
+                    referenceId=driver_data['id'],
+                    type='driver_aadhar'
+                ).order_by('-created')
+                documents.extend(list(driver_docs))
+            except Exception as e:
+                print(f"Could not fetch driver documents: {e}")
+
+        # Get helper documents if helper exists
+        if helper_data:
+            try:
+                helper_docs = DocumentControl.objects.filter(
+                    referenceId=helper_data['id'],
+                    type='helper_aadhar'
+                ).order_by('-created')
+                documents.extend(list(helper_docs))
+            except Exception as e:
+                print(f"Could not fetch helper documents: {e}")
+
+        # Get PO documents if PO exists
+        if po_number:
+            try:
+                po_docs = DocumentControl.objects.filter(
+                    referenceId=po_number,
+                    type__in=['po', 'do', 'before_weighing', 'after_weighing']
+                ).order_by('-created')
+                documents.extend(list(po_docs))
+            except Exception as e:
+                print(f"Could not fetch PO documents: {e}")
         
         return Response({
             "vehicle": VehicleDetailsSerializer(vehicle).data,

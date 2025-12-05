@@ -57,7 +57,7 @@ const Register = ({ onSwitchToLogin }) => {
     if (!formData.password) {
       newErrors.password = "Password is required";
     } else if (formData.password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters";
+      newErrors.password = "Password must be at least 8 characters";
     }
 
     if (!formData.verify_password) {
@@ -288,7 +288,7 @@ const Register = ({ onSwitchToLogin }) => {
                   type={showPassword ? "text" : "password"}
                   value={formData.password}
                   onChange={(e) => handleInputChange("password", e.target.value)}
-                  placeholder="At least 6 characters"
+                  placeholder="At least 8 characters"
                   className={`w-full pl-10 pr-10 py-3 rounded-xl border text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
                     errors.password
                       ? "border-red-400 bg-red-50 placeholder:text-red-400 focus:ring-red-500"
