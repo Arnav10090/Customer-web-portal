@@ -104,6 +104,7 @@ const initialFormData = {
   helperName: "",
   driverLanguage: "en",
   helperLanguage: "en",
+  vehicleRatings: "",
 };
 
 const initialFiles = {
@@ -337,6 +338,7 @@ const CustomerPortal = () => {
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [vehicleData, setVehicleData] = useState(null);
   const [loadingVehicleData, setLoadingVehicleData] = useState(false);
+  const [vehicleRatings, setVehicleRatings] = useState("");
 
   // PO dropdown state
   const [poNumbers, setPoNumbers] = useState([]);
@@ -700,10 +702,14 @@ const CustomerPortal = () => {
 
     const poNumber = data.po_number || data.poNumber || "";
 
+    const ratings =
+      data.ratings || data.vehicleRatings || data.rating || "";
+
     // Build updates to state
     const updates = {
       ...(vehicleReg ? { vehicleNumber: vehicleReg } : {}),
       ...(poNumber ? { poNumber: String(poNumber) } : {}),
+      ...(ratings ? { vehicleRatings: String(ratings) } : {}),
     };
 
     if (driver) {
@@ -1335,227 +1341,262 @@ const CustomerPortal = () => {
   );
 
   const handleNextStep = async () => {
-    const currentStepFields = stepFieldMap[currentStep];
-    if (!validateFields(currentStepFields)) {
-      showPopupMessage(
-        "Please fill in all required fields before proceeding.",
-        "warning"
-      );
-      return;
-    }
+  const currentStepFields = stepFieldMap[currentStep];
+  if (!validateFields(currentStepFields)) {
+    showPopupMessage(
+      "Please fill in all required fields before proceeding.",
+      "warning"
+    );
+    return;
+  }
 
-    // If on step 0, save vehicle and call create API
-    if (currentStep === 0 && !vehicleSaved) {
-      try {
-        setLoading(true);
-        if (formData.vehicleNumber.trim()) {
-          const response = await vehiclesAPI.createOrGetVehicle(
-            formData.vehicleNumber
-          );
-          const { driver, helper } = response.data;
-
-          // Auto-fill driver and helper for Step 2
-          const updates = {};
-          let hasDriver = false;
-          let hasHelper = false;
-          if (driver) {
-            updates.driverName = driver.name || "";
-            updates.driverPhone = driver.phoneNo || "";
-            updates.driverLanguage = driver.language || "en";
-            hasDriver = true;
-          }
-
-          if (helper) {
-            updates.helperName = helper.name || "";
-            updates.helperPhone = helper.phoneNo || "";
-            updates.helperLanguage = helper.language || "en";
-            hasHelper = true;
-          }
-
-          if (Object.keys(updates).length > 0) {
-            setFormData((prev) => ({ ...prev, ...updates }));
-
-            // Show combined message
-            if (hasDriver && hasHelper) {
-              showPopupMessage("Driver and Helper info auto-filled", "info");
-            } else if (hasDriver) {
-              showPopupMessage("Driver info auto-filled", "info");
-            } else if (hasHelper) {
-              showPopupMessage("Helper info auto-filled", "info");
-            }
-          }
-
-          setVehicleSaved(true);
-        }
-      } catch (error) {
-        console.error("Failed to save vehicle:", error);
-        showPopupMessage(
-          "Failed to save vehicle details, but you can continue",
-          "warning"
-        );
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    // If on step 1, save driver and helper info ONLY if data has changed
-    if (currentStep === 1) {
-      // Create current data snapshot
-      const currentDriverHelperData = {
-        driverName: formData.driverName.trim(),
-        driverPhone: formData.driverPhone,
-        driverLanguage: formData.driverLanguage,
-        helperName: formData.helperName.trim(),
-        helperPhone: formData.helperPhone,
-        helperLanguage: formData.helperLanguage,
-      };
-
-      // Check if data has changed since last save
-      const hasChanged =
-        !savedDriverHelperData ||
-        !compareDriverHelperData(
-          currentDriverHelperData,
-          savedDriverHelperData
-        );
-
-      if (hasChanged) {
-        try {
-          setLoading(true);
-
-          // Save driver info
-          const driverPayload = {
-            name: formData.driverName.trim(),
-            phoneNo: formData.driverPhone,
-            type: "Driver",
-            language: formData.driverLanguage,
-          };
-
-          const driverResponse = await driversAPI.validateOrCreate(
-            driverPayload
-          );
-          console.log("Driver saved:", driverResponse.data);
-
-          // Save helper info
-          const helperPayload = {
-            name: formData.helperName.trim(),
-            phoneNo: formData.helperPhone,
-            type: "Helper",
-            language: formData.helperLanguage,
-          };
-
-          const helperResponse = await driversAPI.validateOrCreate(
-            helperPayload
-          );
-          console.log("Helper saved:", helperResponse.data);
-
-          // Store the saved data to compare against future changes
-          setSavedDriverHelperData(currentDriverHelperData);
-
-          showPopupMessage(
-            "Driver and helper information saved successfully",
-            "info"
-          );
-        } catch (error) {
-          console.error("Failed to save driver/helper:", error);
-          showPopupMessage(
-            error.response?.data?.error ||
-              "Failed to save driver/helper information",
-            "warning"
-          );
-          return; // Don't proceed if save fails
-        } finally {
-          setLoading(false);
-        }
-      } else {
-        console.log("Driver/helper data unchanged, skipping API call");
-      }
-    }
-
-    // If on step 1, fetch and auto-fill documents for step 2
-    if (currentStep === 1 && formData.vehicleNumber.trim()) {
-      try {
-        setLoading(true);
-
-        // Fetch vehicle complete data including documents
-        const response = await vehiclesAPI.getVehicleCompleteData(
+  // If on step 0, save vehicle and PO before proceeding
+  if (currentStep === 0) {
+    try {
+      setLoading(true);
+      
+      // Create/get vehicle first
+      if (formData.vehicleNumber.trim()) {
+        const vehicleResponse = await vehiclesAPI.createOrGetVehicle(
           formData.vehicleNumber
         );
-        const { documents } = response.data;
+        const { driver, helper, po_number } = vehicleResponse.data;
 
-        if (documents && documents.length > 0) {
-          // Map document types to frontend field names
-          const docTypeMapping = {
-            vehicle_registration: "vehicleRegistration",
-            vehicle_insurance: "vehicleInsurance",
-            vehicle_puc: "vehiclePuc",
-            driver_aadhar: "driverAadhar",
-            helper_aadhar: "helperAadhar",
-            po: "po",
-            do: "do",
-            before_weighing: "beforeWeighing",
-            after_weighing: "afterWeighing",
-          };
+        // Auto-fill driver and helper for Step 1
+        const updates = {};
+        let hasDriver = false;
+        let hasHelper = false;
+        
+        if (driver) {
+          updates.driverName = driver.name || "";
+          updates.driverPhone = driver.phoneNo || "";
+          updates.driverLanguage = driver.language || "en";
+          hasDriver = true;
+        }
 
-          // Create file objects for each document
-          const newFiles = { ...files };
-          const documentNames = [];
+        if (helper) {
+          updates.helperName = helper.name || "";
+          updates.helperPhone = helper.phoneNo || "";
+          updates.helperLanguage = helper.language || "en";
+          hasHelper = true;
+        }
 
-          documents.forEach((doc) => {
-            const frontendType = docTypeMapping[doc.type];
-            if (frontendType) {
-              // Create a file-like object with document info
-              const fileObj = {
-                name: doc.name || `${doc.type_display}.pdf`,
-                documentId: doc.id,
-                filePath: doc.filePath,
-                type:
-                  doc.type === "application/pdf"
-                    ? "application/pdf"
-                    : "image/jpeg",
-                size: 0,
-                uploaded: true,
-                fromDatabase: true,
-              };
+        if (Object.keys(updates).length > 0) {
+          setFormData((prev) => ({ ...prev, ...updates }));
 
-              // Add to the appropriate document type array
-              if (!newFiles[frontendType]) {
-                newFiles[frontendType] = [];
-              }
-
-              // Check if document already exists to avoid duplicates
-              const exists = newFiles[frontendType].some(
-                (f) => f.documentId === doc.id
-              );
-
-              if (!exists) {
-                newFiles[frontendType] = [...newFiles[frontendType], fileObj];
-                documentNames.push(doc.type_display || doc.type);
-              }
-            }
-          });
-
-          setFiles(newFiles);
-
-          // Show success message with document count
-          if (documentNames.length > 0) {
-            showPopupMessage(
-              `${documentNames.length} document${
-                documentNames.length > 1 ? "s" : ""
-              } auto-filled from previous submission`,
-              "info"
-            );
+          // Show combined message
+          if (hasDriver && hasHelper) {
+            showPopupMessage("Driver and Helper info auto-filled", "info");
+          } else if (hasDriver) {
+            showPopupMessage("Driver info auto-filled", "info");
+          } else if (hasHelper) {
+            showPopupMessage("Helper info auto-filled", "info");
           }
         }
+
+        setVehicleSaved(true);
+      }
+
+      // Create/get PO after vehicle is saved
+      if (formData.poNumber.trim()) {
+        try {
+          const poResponse = await poDetailsAPI.createOrGetPO(
+            formData.poNumber
+          );
+          const poData = poResponse.data.po;
+          
+          // Extract dapName
+          if (poData && poData.dapName) {
+            if (typeof poData.dapName === 'object' && poData.dapName.name) {
+              setDapName(poData.dapName.name);
+            } else if (typeof poData.dapName === 'string') {
+              setDapName(poData.dapName);
+            }
+          } else {
+            setDapName("");
+          }
+          
+          // Show success message if PO was created
+          if (poResponse.data.created) {
+            showPopupMessage(`PO ${formData.poNumber} created successfully`, "info");
+          }
+        } catch (poError) {
+          console.error("Failed to create/get PO:", poError);
+          showPopupMessage(
+            "Failed to save PO details, but you can continue",
+            "warning"
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Failed to save vehicle:", error);
+      showPopupMessage(
+        "Failed to save vehicle details, but you can continue",
+        "warning"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // If on step 1, save driver and helper info ONLY if data has changed
+  if (currentStep === 1) {
+    // Create current data snapshot
+    const currentDriverHelperData = {
+      driverName: formData.driverName.trim(),
+      driverPhone: formData.driverPhone,
+      driverLanguage: formData.driverLanguage,
+      helperName: formData.helperName.trim(),
+      helperPhone: formData.helperPhone,
+      helperLanguage: formData.helperLanguage,
+    };
+
+    // Check if data has changed since last save
+    const hasChanged =
+      !savedDriverHelperData ||
+      !compareDriverHelperData(
+        currentDriverHelperData,
+        savedDriverHelperData
+      );
+
+    if (hasChanged) {
+      try {
+        setLoading(true);
+
+        // Save driver info
+        const driverPayload = {
+          name: formData.driverName.trim(),
+          phoneNo: formData.driverPhone,
+          type: "Driver",
+          language: formData.driverLanguage,
+        };
+
+        const driverResponse = await driversAPI.validateOrCreate(
+          driverPayload
+        );
+        console.log("Driver saved:", driverResponse.data);
+
+        // Save helper info
+        const helperPayload = {
+          name: formData.helperName.trim(),
+          phoneNo: formData.helperPhone,
+          type: "Helper",
+          language: formData.helperLanguage,
+        };
+
+        const helperResponse = await driversAPI.validateOrCreate(
+          helperPayload
+        );
+        console.log("Helper saved:", helperResponse.data);
+
+        // Store the saved data to compare against future changes
+        setSavedDriverHelperData(currentDriverHelperData);
+
+        showPopupMessage(
+          "Driver and helper information saved successfully",
+          "info"
+        );
       } catch (error) {
-        console.error("Failed to fetch documents:", error);
-        // Don't show error to user, they can still proceed
+        console.error("Failed to save driver/helper:", error);
+        showPopupMessage(
+          error.response?.data?.error ||
+            "Failed to save driver/helper information",
+          "warning"
+        );
+        return; // Don't proceed if save fails
       } finally {
         setLoading(false);
       }
+    } else {
+      console.log("Driver/helper data unchanged, skipping API call");
     }
+  }
 
-    setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
-  };
+  // If on step 1, fetch and auto-fill documents for step 2
+  if (currentStep === 1 && formData.vehicleNumber.trim()) {
+    try {
+      setLoading(true);
+
+      // Fetch vehicle complete data including documents
+      const response = await vehiclesAPI.getVehicleCompleteData(
+        formData.vehicleNumber
+      );
+      const { documents } = response.data;
+
+      if (documents && documents.length > 0) {
+        // Map document types to frontend field names
+        const docTypeMapping = {
+          vehicle_registration: "vehicleRegistration",
+          vehicle_insurance: "vehicleInsurance",
+          vehicle_puc: "vehiclePuc",
+          driver_aadhar: "driverAadhar",
+          helper_aadhar: "helperAadhar",
+          po: "po",
+          do: "do",
+          before_weighing: "beforeWeighing",
+          after_weighing: "afterWeighing",
+        };
+
+        // Create file objects for each document
+        const newFiles = { ...files };
+        const documentNames = [];
+
+        documents.forEach((doc) => {
+          const frontendType = docTypeMapping[doc.type];
+          if (frontendType) {
+            // Create a file-like object with document info
+            const fileObj = {
+              name: doc.name || `${doc.type_display}.pdf`,
+              documentId: doc.id,
+              filePath: doc.filePath,
+              type:
+                doc.type === "application/pdf"
+                  ? "application/pdf"
+                  : "image/jpeg",
+              size: 0,
+              uploaded: true,
+              fromDatabase: true,
+            };
+
+            // Add to the appropriate document type array
+            if (!newFiles[frontendType]) {
+              newFiles[frontendType] = [];
+            }
+
+            // Check if document already exists to avoid duplicates
+            const exists = newFiles[frontendType].some(
+              (f) => f.documentId === doc.id
+            );
+
+            if (!exists) {
+              newFiles[frontendType] = [...newFiles[frontendType], fileObj];
+              documentNames.push(doc.type_display || doc.type);
+            }
+          }
+        });
+
+        setFiles(newFiles);
+
+        // Show success message with document count
+        if (documentNames.length > 0) {
+          showPopupMessage(
+            `${documentNames.length} document${
+              documentNames.length > 1 ? "s" : ""
+            } auto-filled from previous submission`,
+            "info"
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch documents:", error);
+      // Don't show error to user, they can still proceed
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
+};
 
   const handlePreviousStep = () => {
     setCurrentStep((prev) => Math.max(prev - 1, 0));
@@ -2443,6 +2484,24 @@ const CustomerPortal = () => {
                             </div>
                           )}
                         </div>
+
+                        <div>
+                          <label
+                            htmlFor="vehicleRatings"
+                            className="text-sm font-medium text-gray-700"
+                          >
+                            Ratings
+                          </label>
+                          <input
+                            id="vehicleRatings"
+                            name="vehicleRatings"
+                            type="text"
+                            value={formData.vehicleRatings}
+                            readOnly
+                            placeholder="Ratings will auto-fill"
+                            className="mt-2 w-full rounded-xl border border-gray-300 bg-gray-100 px-4 py-3 text-sm font-medium text-gray-900 cursor-not-allowed"
+                          />
+                        </div>
                       </div>
                     </section>
                   </div>
@@ -2480,517 +2539,531 @@ const CustomerPortal = () => {
                       </div>
                     </div>
                   )}
-                  <section className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
-                    <div className="flex items-center gap-3">
-                      <Phone
-                        className="h-5 w-5 text-blue-600"
-                        aria-hidden="true"
-                      />
-                      <h2 className="text-lg font-semibold text-gray-800">
-                        Driver Information
-                      </h2>
-                    </div>
-                    <div className="mt-6 grid gap-6 lg:grid-cols-2">
-                      {/* Row 1: Names */}
-                      <div>
-                        <label
-                          htmlFor="driverName"
-                          className="text-sm font-medium text-gray-700"
-                        >
-                          Driver name<span className="text-red-500"> *</span>
-                        </label>
-                        <input
-                          id="driverName"
-                          name="driverName"
-                          type="text"
-                          value={formData.driverName}
-                          onChange={(e) =>
-                            handleInputChange("driverName", e.target.value)
-                          }
-                          placeholder="Driver name"
-                          className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                            errors.driverName
-                              ? "border-red-400 bg-red-50"
-                              : "border-gray-300 bg-white"
-                          }`}
-                          autoComplete="name"
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    <section className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
+                      <div className="flex items-center gap-3">
+                        <User
+                          className="h-5 w-5 text-blue-600"
+                          aria-hidden="true"
                         />
-                        {errors.driverName && (
-                          <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
-                            <AlertCircle
-                              className="h-4 w-4"
-                              aria-hidden="true"
-                            />
-                            <span>{errors.driverName}</span>
-                          </div>
-                        )}
+                        <h2 className="text-lg font-semibold text-gray-800">
+                          Driver Details
+                        </h2>
                       </div>
-                      <div>
-                        <label
-                          htmlFor="helperName"
-                          className="text-sm font-medium text-gray-700"
-                        >
-                          Helper name<span className="text-red-500"> *</span>
-                        </label>
-                        <input
-                          id="helperName"
-                          name="helperName"
-                          type="text"
-                          value={formData.helperName}
-                          onChange={(e) =>
-                            handleInputChange("helperName", e.target.value)
-                          }
-                          placeholder="Helper name"
-                          className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                            errors.helperName
-                              ? "border-red-400 bg-red-50"
-                              : "border-gray-300 bg-white"
-                          }`}
-                          autoComplete="name"
-                        />
-                        {errors.helperName && (
-                          <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
-                            <AlertCircle
-                              className="h-4 w-4"
-                              aria-hidden="true"
-                            />
-                            <span>{errors.helperName}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Row 2: Phones */}
-                      <div>
-                        <label
-                          htmlFor="driverPhone"
-                          className="text-sm font-medium text-gray-700"
-                        >
-                          Driver Phone no.
-                          <span className="text-red-500"> *</span>
-                        </label>
-                        <input
-                          id="driverPhone"
-                          name="driverPhone"
-                          type="tel"
-                          inputMode="numeric"
-                          value={formData.driverPhone}
-                          onChange={(e) =>
-                            handleInputChange("driverPhone", e.target.value)
-                          }
-                          placeholder="+91XXXXXXXXXX"
-                          className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                            errors.driverPhone
-                              ? "border-red-400 bg-red-50"
-                              : "border-gray-300 bg-white"
-                          }`}
-                        />
-                        {errors.driverPhone && (
-                          <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
-                            <AlertCircle
-                              className="h-4 w-4"
-                              aria-hidden="true"
-                            />
-                            <span>{errors.driverPhone}</span>
-                          </div>
-                        )}
-                      </div>
-                      <div>
-                        <label
-                          htmlFor="helperPhone"
-                          className="text-sm font-medium text-gray-700"
-                        >
-                          Helper Phone no.
-                          <span className="text-red-500"> *</span>
-                        </label>
-                        <input
-                          id="helperPhone"
-                          name="helperPhone"
-                          type="tel"
-                          inputMode="numeric"
-                          value={formData.helperPhone}
-                          onChange={(e) =>
-                            handleInputChange("helperPhone", e.target.value)
-                          }
-                          placeholder="+91XXXXXXXXXX"
-                          className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                            errors.helperPhone
-                              ? "border-red-400 bg-red-50"
-                              : "border-gray-300 bg-white"
-                          }`}
-                        />
-                        {errors.helperPhone && (
-                          <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
-                            <AlertCircle
-                              className="h-4 w-4"
-                              aria-hidden="true"
-                            />
-                            <span>{errors.helperPhone}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Row 3: Languages */}
-                      <div>
-                        <label
-                          htmlFor="driverLanguage"
-                          className="text-sm font-medium text-gray-700"
-                        >
-                          Driver Language
-                          <span className="text-red-500"> *</span>
-                        </label>
-                        <div className="relative mt-2">
-                          <Globe
-                            className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400"
-                            aria-hidden="true"
+                      <div className="mt-6 grid gap-6">
+                        <div>
+                          <label
+                            htmlFor="driverName"
+                            className="text-sm font-medium text-gray-700"
+                          >
+                            Driver name<span className="text-red-500"> *</span>
+                          </label>
+                          <input
+                            id="driverName"
+                            name="driverName"
+                            type="text"
+                            value={formData.driverName}
+                            onChange={(e) =>
+                              handleInputChange("driverName", e.target.value)
+                            }
+                            placeholder="Driver name"
+                            className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                              errors.driverName
+                                ? "border-red-400 bg-red-50"
+                                : "border-gray-300 bg-white"
+                            }`}
+                            autoComplete="name"
                           />
-                          <div className="relative max-w-md">
-                            <button
-                              ref={prefButtonRef}
-                              type="button"
-                              aria-haspopup="listbox"
-                              aria-expanded={prefDropdownOpen}
-                              onClick={() => {
-                                setPrefDropdownOpen((s) => !s);
-                                setPrefHighlight(
-                                  languages.findIndex(
-                                    (l) => l.value === formData.driverLanguage
-                                  )
-                                );
-                              }}
-                              className={`w-full rounded-xl border ${
-                                errors.driverLanguage
-                                  ? "border-red-400 bg-red-50"
-                                  : "border-gray-300"
-                              } bg-white px-4 py-3 text-left text-sm font-medium text-gray-900 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                            >
-                              <div className="flex items-center gap-2">
-                                <Globe className="h-4 w-4 text-gray-400" />
-                                <span>
-                                  {
-                                    languages.find(
+                          {errors.driverName && (
+                            <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
+                              <AlertCircle
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                              <span>{errors.driverName}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <label
+                            htmlFor="driverPhone"
+                            className="text-sm font-medium text-gray-700"
+                          >
+                            Driver Phone no.
+                            <span className="text-red-500"> *</span>
+                          </label>
+                          <input
+                            id="driverPhone"
+                            name="driverPhone"
+                            type="tel"
+                            inputMode="numeric"
+                            value={formData.driverPhone}
+                            onChange={(e) =>
+                              handleInputChange("driverPhone", e.target.value)
+                            }
+                            placeholder="+91XXXXXXXXXX"
+                            className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                              errors.driverPhone
+                                ? "border-red-400 bg-red-50"
+                                : "border-gray-300 bg-white"
+                            }`}
+                          />
+                          {errors.driverPhone && (
+                            <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
+                              <AlertCircle
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                              <span>{errors.driverPhone}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <label
+                            htmlFor="driverLanguage"
+                            className="text-sm font-medium text-gray-700"
+                          >
+                            Driver Language
+                            <span className="text-red-500"> *</span>
+                          </label>
+                          <div className="relative mt-2">
+                            <Globe
+                              className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400"
+                              aria-hidden="true"
+                            />
+                            <div className="relative">
+                              <button
+                                ref={prefButtonRef}
+                                type="button"
+                                aria-haspopup="listbox"
+                                aria-expanded={prefDropdownOpen}
+                                onClick={() => {
+                                  setPrefDropdownOpen((s) => !s);
+                                  setPrefHighlight(
+                                    languages.findIndex(
                                       (l) => l.value === formData.driverLanguage
-                                    )?.label
-                                  }
-                                </span>
-                                <svg
-                                  className={`ml-auto h-4 w-4 text-gray-500 transform ${
-                                    prefDropdownOpen ? "rotate-180" : "rotate-0"
-                                  }`}
-                                  viewBox="0 0 20 20"
-                                  fill="none"
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  aria-hidden
-                                >
-                                  <path
-                                    d="M6 8l4 4 4-4"
-                                    stroke="currentColor"
-                                    strokeWidth="1.5"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  />
-                                </svg>
-                              </div>
-                            </button>
-                            {prefDropdownOpen && (
-                              <div className="absolute left-0 right-0 z-40 mt-2 rounded-xl bg-white border border-gray-200 shadow-lg">
-                                <div className="p-2">
-                                  <input
-                                    ref={prefListRef}
-                                    type="text"
-                                    value={prefSearch}
-                                    onChange={(e) => {
-                                      setPrefSearch(e.target.value);
-                                      setPrefHighlight(0);
-                                    }}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "ArrowDown") {
-                                        e.preventDefault();
-                                        const filtered = languages.filter((l) =>
-                                          l.label
-                                            .toLowerCase()
-                                            .includes(prefSearch.toLowerCase())
-                                        );
-                                        setPrefHighlight((prev) =>
-                                          Math.min(
-                                            prev + 1,
-                                            filtered.length - 1
-                                          )
-                                        );
-                                      } else if (e.key === "ArrowUp") {
-                                        e.preventDefault();
-                                        setPrefHighlight((prev) =>
-                                          Math.max(prev - 1, 0)
-                                        );
-                                      } else if (e.key === "Enter") {
-                                        e.preventDefault();
-                                        const filtered = languages.filter((l) =>
-                                          l.label
-                                            .toLowerCase()
-                                            .includes(prefSearch.toLowerCase())
-                                        );
-                                        if (filtered[prefHighlight]) {
-                                          handleInputChange(
-                                            "driverLanguage",
-                                            filtered[prefHighlight].value
-                                          );
-                                          setPrefDropdownOpen(false);
-                                          setPrefSearch("");
-                                        }
-                                      }
-                                    }}
-                                    placeholder="Search languages..."
-                                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                  />
-                                </div>
-                                <ul
-                                  role="listbox"
-                                  aria-activedescendant={
-                                    languages.filter((l) =>
-                                      l.label
-                                        .toLowerCase()
-                                        .includes(prefSearch.toLowerCase())
-                                    )[prefHighlight]?.value
-                                  }
-                                  tabIndex={-1}
-                                  className="max-h-60 overflow-auto py-2"
-                                >
-                                  {languages
-                                    .filter((l) =>
-                                      l.label
-                                        .toLowerCase()
-                                        .includes(prefSearch.toLowerCase())
                                     )
-                                    .map((opt, idx) => (
-                                      <li
-                                        key={opt.value}
-                                        role="option"
-                                        aria-selected={
-                                          formData.driverLanguage === opt.value
-                                        }
-                                        onClick={() => {
-                                          handleInputChange(
-                                            "driverLanguage",
-                                            opt.value
+                                  );
+                                }}
+                                className={`w-full rounded-xl border ${
+                                  errors.driverLanguage
+                                    ? "border-red-400 bg-red-50"
+                                    : "border-gray-300"
+                                } bg-white px-4 py-3 text-left text-sm font-medium text-gray-900 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Globe className="h-4 w-4 text-gray-400" />
+                                  <span>
+                                    {
+                                      languages.find(
+                                        (l) => l.value === formData.driverLanguage
+                                      )?.label
+                                    }
+                                  </span>
+                                  <svg
+                                    className={`ml-auto h-4 w-4 text-gray-500 transform ${
+                                      prefDropdownOpen ? "rotate-180" : "rotate-0"
+                                    }`}
+                                    viewBox="0 0 20 20"
+                                    fill="none"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    aria-hidden
+                                  >
+                                    <path
+                                      d="M6 8l4 4 4-4"
+                                      stroke="currentColor"
+                                      strokeWidth="1.5"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                  </svg>
+                                </div>
+                              </button>
+                              {prefDropdownOpen && (
+                                <div className="absolute left-0 right-0 z-40 mt-2 rounded-xl bg-white border border-gray-200 shadow-lg">
+                                  <div className="p-2">
+                                    <input
+                                      ref={prefListRef}
+                                      type="text"
+                                      value={prefSearch}
+                                      onChange={(e) => {
+                                        setPrefSearch(e.target.value);
+                                        setPrefHighlight(0);
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "ArrowDown") {
+                                          e.preventDefault();
+                                          const filtered = languages.filter((l) =>
+                                            l.label
+                                              .toLowerCase()
+                                              .includes(prefSearch.toLowerCase())
                                           );
-                                          setPrefDropdownOpen(false);
-                                          setPrefSearch("");
-                                        }}
-                                        onMouseEnter={() =>
-                                          setPrefHighlight(idx)
+                                          setPrefHighlight((prev) =>
+                                            Math.min(
+                                              prev + 1,
+                                              filtered.length - 1
+                                            )
+                                          );
+                                        } else if (e.key === "ArrowUp") {
+                                          e.preventDefault();
+                                          setPrefHighlight((prev) =>
+                                            Math.max(prev - 1, 0)
+                                          );
+                                        } else if (e.key === "Enter") {
+                                          e.preventDefault();
+                                          const filtered = languages.filter((l) =>
+                                            l.label
+                                              .toLowerCase()
+                                              .includes(prefSearch.toLowerCase())
+                                          );
+                                          if (filtered[prefHighlight]) {
+                                            handleInputChange(
+                                              "driverLanguage",
+                                              filtered[prefHighlight].value
+                                            );
+                                            setPrefDropdownOpen(false);
+                                            setPrefSearch("");
+                                          }
                                         }
-                                        className={`cursor-pointer px-4 py-2 text-sm ${
-                                          formData.driverLanguage === opt.value
-                                            ? "bg-blue-50 text-blue-700 font-semibold"
-                                            : prefHighlight === idx
-                                            ? "bg-gray-100"
-                                            : "text-gray-700"
-                                        }`}
-                                      >
-                                        {opt.label}
-                                      </li>
-                                    ))}
-                                </ul>
-                              </div>
-                            )}
+                                      }}
+                                      placeholder="Search languages..."
+                                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                  </div>
+                                  <ul
+                                    role="listbox"
+                                    aria-activedescendant={
+                                      languages.filter((l) =>
+                                        l.label
+                                          .toLowerCase()
+                                          .includes(prefSearch.toLowerCase())
+                                      )[prefHighlight]?.value
+                                    }
+                                    tabIndex={-1}
+                                    className="max-h-60 overflow-auto py-2"
+                                  >
+                                    {languages
+                                      .filter((l) =>
+                                        l.label
+                                          .toLowerCase()
+                                          .includes(prefSearch.toLowerCase())
+                                      )
+                                      .map((opt, idx) => (
+                                        <li
+                                          key={opt.value}
+                                          role="option"
+                                          aria-selected={
+                                            formData.driverLanguage === opt.value
+                                          }
+                                          onClick={() => {
+                                            handleInputChange(
+                                              "driverLanguage",
+                                              opt.value
+                                            );
+                                            setPrefDropdownOpen(false);
+                                            setPrefSearch("");
+                                          }}
+                                          onMouseEnter={() =>
+                                            setPrefHighlight(idx)
+                                          }
+                                          className={`cursor-pointer px-4 py-2 text-sm ${
+                                            formData.driverLanguage === opt.value
+                                              ? "bg-blue-50 text-blue-700 font-semibold"
+                                              : prefHighlight === idx
+                                              ? "bg-gray-100"
+                                              : "text-gray-700"
+                                          }`}
+                                        >
+                                          {opt.label}
+                                        </li>
+                                      ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
                           </div>
+                          {errors.driverLanguage && (
+                            <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
+                              <AlertCircle
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                              <span>{errors.driverLanguage}</span>
+                            </div>
+                          )}
                         </div>
-                        {errors.driverLanguage && (
-                          <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
-                            <AlertCircle
-                              className="h-4 w-4"
-                              aria-hidden="true"
-                            />
-                            <span>{errors.driverLanguage}</span>
-                          </div>
-                        )}
                       </div>
+                    </section>
 
-                      <div>
-                        <label
-                          htmlFor="helperLanguage"
-                          className="text-sm font-medium text-gray-700"
-                        >
-                          Helper Language
-                          <span className="text-red-500"> *</span>
-                        </label>
-                        <div className="relative mt-2">
-                          <Globe
-                            className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400"
-                            aria-hidden="true"
+                    <section className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
+                      <div className="flex items-center gap-3">
+                        <User
+                          className="h-5 w-5 text-blue-600"
+                          aria-hidden="true"
+                        />
+                        <h2 className="text-lg font-semibold text-gray-800">
+                          Helper Details
+                        </h2>
+                      </div>
+                      <div className="mt-6 grid gap-6">
+                        <div>
+                          <label
+                            htmlFor="helperName"
+                            className="text-sm font-medium text-gray-700"
+                          >
+                            Helper name<span className="text-red-500"> *</span>
+                          </label>
+                          <input
+                            id="helperName"
+                            name="helperName"
+                            type="text"
+                            value={formData.helperName}
+                            onChange={(e) =>
+                              handleInputChange("helperName", e.target.value)
+                            }
+                            placeholder="Helper name"
+                            className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                              errors.helperName
+                                ? "border-red-400 bg-red-50"
+                                : "border-gray-300 bg-white"
+                            }`}
+                            autoComplete="name"
                           />
-                          <div className="relative max-w-md">
-                            <button
-                              ref={helperPrefButtonRef}
-                              type="button"
-                              aria-haspopup="listbox"
-                              aria-expanded={helperPrefDropdownOpen}
-                              onClick={() => {
-                                setHelperPrefDropdownOpen((s) => !s);
-                                setHelperPrefHighlight(
-                                  languages.findIndex(
-                                    (l) => l.value === formData.helperLanguage
-                                  )
-                                );
-                              }}
-                              className={`w-full rounded-xl border ${
-                                errors.helperLanguage
-                                  ? "border-red-400 bg-red-50"
-                                  : "border-gray-300"
-                              } bg-white px-4 py-3 text-left text-sm font-medium text-gray-900 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                            >
-                              <div className="flex items-center gap-2">
-                                <Globe className="h-4 w-4 text-gray-400" />
-                                <span>
-                                  {
-                                    languages.find(
-                                      (l) => l.value === formData.helperLanguage
-                                    )?.label
-                                  }
-                                </span>
-                                <svg
-                                  className={`ml-auto h-4 w-4 text-gray-500 transform ${
-                                    helperPrefDropdownOpen
-                                      ? "rotate-180"
-                                      : "rotate-0"
-                                  }`}
-                                  viewBox="0 0 20 20"
-                                  fill="none"
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  aria-hidden
-                                >
-                                  <path
-                                    d="M6 8l4 4 4-4"
-                                    stroke="currentColor"
-                                    strokeWidth="1.5"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  />
-                                </svg>
-                              </div>
-                            </button>
-                            {helperPrefDropdownOpen && (
-                              <div className="absolute left-0 right-0 z-40 mt-2 rounded-xl bg-white border border-gray-200 shadow-lg">
-                                <div className="p-2">
-                                  <input
-                                    ref={helperPrefListRef}
-                                    type="text"
-                                    value={helperPrefSearch}
-                                    onChange={(e) => {
-                                      setHelperPrefSearch(e.target.value);
-                                      setHelperPrefHighlight(0);
-                                    }}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "ArrowDown") {
-                                        e.preventDefault();
-                                        const filtered = languages.filter((l) =>
-                                          l.label
-                                            .toLowerCase()
-                                            .includes(
-                                              helperPrefSearch.toLowerCase()
-                                            )
-                                        );
-                                        setHelperPrefHighlight((prev) =>
-                                          Math.min(
-                                            prev + 1,
-                                            filtered.length - 1
-                                          )
-                                        );
-                                      } else if (e.key === "ArrowUp") {
-                                        e.preventDefault();
-                                        setHelperPrefHighlight((prev) =>
-                                          Math.max(prev - 1, 0)
-                                        );
-                                      } else if (e.key === "Enter") {
-                                        e.preventDefault();
-                                        const filtered = languages.filter((l) =>
-                                          l.label
-                                            .toLowerCase()
-                                            .includes(
-                                              helperPrefSearch.toLowerCase()
-                                            )
-                                        );
-                                        if (filtered[helperPrefHighlight]) {
-                                          handleInputChange(
-                                            "helperLanguage",
-                                            filtered[helperPrefHighlight].value
-                                          );
-                                          setHelperPrefDropdownOpen(false);
-                                          setHelperPrefSearch("");
-                                        }
-                                      }
-                                    }}
-                                    placeholder="Search languages..."
-                                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                  />
-                                </div>
-                                <ul
-                                  role="listbox"
-                                  aria-activedescendant={
-                                    languages.filter((l) =>
-                                      l.label
-                                        .toLowerCase()
-                                        .includes(
-                                          helperPrefSearch.toLowerCase()
-                                        )
-                                    )[helperPrefHighlight]?.value
-                                  }
-                                  tabIndex={-1}
-                                  className="max-h-60 overflow-auto py-2"
-                                >
-                                  {languages
-                                    .filter((l) =>
-                                      l.label
-                                        .toLowerCase()
-                                        .includes(
-                                          helperPrefSearch.toLowerCase()
-                                        )
-                                    )
-                                    .map((opt, idx) => (
-                                      <li
-                                        key={opt.value}
-                                        role="option"
-                                        aria-selected={
-                                          formData.helperLanguage === opt.value
-                                        }
-                                        onClick={() => {
-                                          handleInputChange(
-                                            "helperLanguage",
-                                            opt.value
-                                          );
-                                          setHelperPrefDropdownOpen(false);
-                                          setHelperPrefSearch("");
-                                        }}
-                                        onMouseEnter={() =>
-                                          setHelperPrefHighlight(idx)
-                                        }
-                                        className={`cursor-pointer px-4 py-2 text-sm ${
-                                          formData.helperLanguage === opt.value
-                                            ? "bg-blue-50 text-blue-700 font-semibold"
-                                            : helperPrefHighlight === idx
-                                            ? "bg-gray-100"
-                                            : "text-gray-700"
-                                        }`}
-                                      >
-                                        {opt.label}
-                                      </li>
-                                    ))}
-                                </ul>
-                              </div>
-                            )}
-                          </div>
+                          {errors.helperName && (
+                            <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
+                              <AlertCircle
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                              <span>{errors.helperName}</span>
+                            </div>
+                          )}
                         </div>
-                        {errors.helperLanguage && (
-                          <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
-                            <AlertCircle
-                              className="h-4 w-4"
+
+                        <div>
+                          <label
+                            htmlFor="helperPhone"
+                            className="text-sm font-medium text-gray-700"
+                          >
+                            Helper Phone no.
+                            <span className="text-red-500"> *</span>
+                          </label>
+                          <input
+                            id="helperPhone"
+                            name="helperPhone"
+                            type="tel"
+                            inputMode="numeric"
+                            value={formData.helperPhone}
+                            onChange={(e) =>
+                              handleInputChange("helperPhone", e.target.value)
+                            }
+                            placeholder="+91XXXXXXXXXX"
+                            className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                              errors.helperPhone
+                                ? "border-red-400 bg-red-50"
+                                : "border-gray-300 bg-white"
+                            }`}
+                          />
+                          {errors.helperPhone && (
+                            <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
+                              <AlertCircle
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                              <span>{errors.helperPhone}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <label
+                            htmlFor="helperLanguage"
+                            className="text-sm font-medium text-gray-700"
+                          >
+                            Helper Language
+                            <span className="text-red-500"> *</span>
+                          </label>
+                          <div className="relative mt-2">
+                            <Globe
+                              className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-gray-400"
                               aria-hidden="true"
                             />
-                            <span>{errors.helperLanguage}</span>
+                            <div className="relative">
+                              <button
+                                ref={helperPrefButtonRef}
+                                type="button"
+                                aria-haspopup="listbox"
+                                aria-expanded={helperPrefDropdownOpen}
+                                onClick={() => {
+                                  setHelperPrefDropdownOpen((s) => !s);
+                                  setHelperPrefHighlight(
+                                    languages.findIndex(
+                                      (l) => l.value === formData.helperLanguage
+                                    )
+                                  );
+                                }}
+                                className={`w-full rounded-xl border ${
+                                  errors.helperLanguage
+                                    ? "border-red-400 bg-red-50"
+                                    : "border-gray-300"
+                                } bg-white px-4 py-3 text-left text-sm font-medium text-gray-900 hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Globe className="h-4 w-4 text-gray-400" />
+                                  <span>
+                                    {
+                                      languages.find(
+                                        (l) => l.value === formData.helperLanguage
+                                      )?.label
+                                    }
+                                  </span>
+                                  <svg
+                                    className={`ml-auto h-4 w-4 text-gray-500 transform ${
+                                      helperPrefDropdownOpen
+                                        ? "rotate-180"
+                                        : "rotate-0"
+                                    }`}
+                                    viewBox="0 0 20 20"
+                                    fill="none"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    aria-hidden
+                                  >
+                                    <path
+                                      d="M6 8l4 4 4-4"
+                                      stroke="currentColor"
+                                      strokeWidth="1.5"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                  </svg>
+                                </div>
+                              </button>
+                              {helperPrefDropdownOpen && (
+                                <div className="absolute left-0 right-0 z-40 mt-2 rounded-xl bg-white border border-gray-200 shadow-lg">
+                                  <div className="p-2">
+                                    <input
+                                      ref={helperPrefListRef}
+                                      type="text"
+                                      value={helperPrefSearch}
+                                      onChange={(e) => {
+                                        setHelperPrefSearch(e.target.value);
+                                        setHelperPrefHighlight(0);
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "ArrowDown") {
+                                          e.preventDefault();
+                                          const filtered = languages.filter((l) =>
+                                            l.label
+                                              .toLowerCase()
+                                              .includes(
+                                                helperPrefSearch.toLowerCase()
+                                              )
+                                          );
+                                          setHelperPrefHighlight((prev) =>
+                                            Math.min(
+                                              prev + 1,
+                                              filtered.length - 1
+                                            )
+                                          );
+                                        } else if (e.key === "ArrowUp") {
+                                          e.preventDefault();
+                                          setHelperPrefHighlight((prev) =>
+                                            Math.max(prev - 1, 0)
+                                          );
+                                        } else if (e.key === "Enter") {
+                                          e.preventDefault();
+                                          const filtered = languages.filter((l) =>
+                                            l.label
+                                              .toLowerCase()
+                                              .includes(
+                                                helperPrefSearch.toLowerCase()
+                                              )
+                                          );
+                                          if (filtered[helperPrefHighlight]) {
+                                            handleInputChange(
+                                              "helperLanguage",
+                                              filtered[helperPrefHighlight].value
+                                            );
+                                            setHelperPrefDropdownOpen(false);
+                                            setHelperPrefSearch("");
+                                          }
+                                        }
+                                      }}
+                                      placeholder="Search languages..."
+                                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                  </div>
+                                  <ul
+                                    role="listbox"
+                                    aria-activedescendant={
+                                      languages.filter((l) =>
+                                        l.label
+                                          .toLowerCase()
+                                          .includes(
+                                            helperPrefSearch.toLowerCase()
+                                          )
+                                      )[helperPrefHighlight]?.value
+                                    }
+                                    tabIndex={-1}
+                                    className="max-h-60 overflow-auto py-2"
+                                  >
+                                    {languages
+                                      .filter((l) =>
+                                        l.label
+                                          .toLowerCase()
+                                          .includes(
+                                            helperPrefSearch.toLowerCase()
+                                          )
+                                      )
+                                      .map((opt, idx) => (
+                                        <li
+                                          key={opt.value}
+                                          role="option"
+                                          aria-selected={
+                                            formData.helperLanguage === opt.value
+                                          }
+                                          onClick={() => {
+                                            handleInputChange(
+                                              "helperLanguage",
+                                              opt.value
+                                            );
+                                            setHelperPrefDropdownOpen(false);
+                                            setHelperPrefSearch("");
+                                          }}
+                                          onMouseEnter={() =>
+                                            setHelperPrefHighlight(idx)
+                                          }
+                                          className={`cursor-pointer px-4 py-2 text-sm ${
+                                            formData.helperLanguage === opt.value
+                                              ? "bg-blue-50 text-blue-700 font-semibold"
+                                              : helperPrefHighlight === idx
+                                              ? "bg-gray-100"
+                                              : "text-gray-700"
+                                          }`}
+                                        >
+                                          {opt.label}
+                                        </li>
+                                      ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        )}
+                          {errors.helperLanguage && (
+                            <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
+                              <AlertCircle
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                              <span>{errors.helperLanguage}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </section>
+                    </section>
+                  </div>
                 </>
               )}
 

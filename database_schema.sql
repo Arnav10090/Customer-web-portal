@@ -57,9 +57,10 @@ CREATE TABLE "DocumentControl" (
 CREATE TABLE "DriverHelper" (
   "id" integer PRIMARY KEY,
   "created" datetime,
-  "name" varchar,
+  "name" varchar NOT NULL,
   "type" varchar,
-  "phoneNo" varchar,
+  "phoneNo" varchar NOT NULL,
+  "uid" varchar UNIQUE NOT NULL,
   "language" varchar,
   "isBlacklisted" boolean,
   "rating" integer
