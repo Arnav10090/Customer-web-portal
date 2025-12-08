@@ -205,6 +205,20 @@ export const driversAPI = {
   getDriver: (id) => api.get(`/drivers/${id}/`),
 
   updateDriver: (id, data) => api.patch(`/drivers/${id}/`, data),
+
+  getByVehicle: (vehicleId) => api.get("/drivers/by-vehicle/", {
+    params: { vehicle_id: vehicleId }
+  }),
+
+  saveDriver: (data) => api.post("/drivers/validate-or-create/", {
+    ...data,
+    type: "Driver"
+  }),
+
+  saveHelper: (data) => api.post("/drivers/validate-or-create/", {
+    ...data,
+    type: "Helper"
+  }),
 };
 
 export default api;

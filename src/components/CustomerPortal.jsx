@@ -371,6 +371,13 @@ const CustomerPortal = () => {
   const [autoFillData, setAutoFillData] = useState(null);
   const [savedDriverHelperData, setSavedDriverHelperData] = useState(null);
 
+  const [savedDriverData, setSavedDriverData] = useState(null);
+  const [savedHelperData, setSavedHelperData] = useState(null);
+  const [driverChanged, setDriverChanged] = useState(false);
+  const [helperChanged, setHelperChanged] = useState(false);
+  const [savingDriver, setSavingDriver] = useState(false);
+  const [savingHelper, setSavingHelper] = useState(false);
+
   const docButtonRef = useRef(null);
   const docListRef = useRef(null);
   const vehicleButtonRef = useRef(null);
@@ -476,11 +483,15 @@ const CustomerPortal = () => {
     setLoadingVehicleData(true);
 
     try {
-      // Fetch complete vehicle data including driver, helper, PO, documents
-      const response = await vehiclesAPI.getVehicleCompleteData(vehicleNumber);
-      const { driver, helper, po_number, documents } = response.data;
+      // First get vehicle ID
+      const vehicleResponse = await vehiclesAPI.createOrGetVehicle(
+        vehicleNumber
+      );
+      const vehicleId = vehicleResponse.data.vehicle.id;
 
-      console.log("Vehicle data fetched:", response.data); // Debug log
+      // Fetch driver/helper data by vehicle ID
+      const driverHelperResponse = await driversAPI.getByVehicle(vehicleId);
+      const { driver, helper } = driverHelperResponse.data;
 
       // Prepare updates object
       const updates = {
@@ -492,8 +503,9 @@ const CustomerPortal = () => {
         updates.driverName = driver.name || "";
         updates.driverPhone = driver.phoneNo || "";
         updates.driverLanguage = driver.language || "en";
-        updates.driverAadhar = driver.uid || ""; // Add this
-        setDriverExists(!!driver.uid); // Add this
+        updates.driverAadhar = driver.uid || "";
+        setSavedDriverData(driver);
+        setDriverExists(!!driver.uid);
       }
 
       // Auto-fill helper data if available
@@ -501,8 +513,9 @@ const CustomerPortal = () => {
         updates.helperName = helper.name || "";
         updates.helperPhone = helper.phoneNo || "";
         updates.helperLanguage = helper.language || "en";
-        updates.helperAadhar = helper.uid || ""; // Add this
-        setHelperExists(!!helper.uid); // Add this
+        updates.helperAadhar = helper.uid || "";
+        setSavedHelperData(helper);
+        setHelperExists(!!helper.uid);
       }
 
       // Apply all updates at once
@@ -511,11 +524,22 @@ const CustomerPortal = () => {
         ...updates,
       }));
 
-      // Process and display documents
-      if (documents && documents.length > 0) {
-        console.log("Documents found:", documents); // Debug log
+      // Fetch complete vehicle data for documents
+      const completeDataResponse = await vehiclesAPI.getVehicleCompleteData(
+        vehicleNumber
+      );
+      const { documents, po_number } = completeDataResponse.data;
 
-        // Map document types to frontend field names
+      // Auto-fill PO number
+      if (po_number) {
+        setFormData((prev) => ({
+          ...prev,
+          poNumber: po_number,
+        }));
+      }
+
+      // Process documents
+      if (documents && documents.length > 0) {
         const docTypeMapping = {
           vehicle_registration: "vehicleRegistration",
           vehicle_insurance: "vehicleInsurance",
@@ -528,24 +552,21 @@ const CustomerPortal = () => {
           after_weighing: "afterWeighing",
         };
 
-        // Create file objects for each document
         const newFiles = { ...initialFiles };
 
         documents.forEach((doc) => {
           const frontendType = docTypeMapping[doc.type];
           if (frontendType) {
-            // Create a file-like object with document info
             const fileObj = {
               name: doc.name || `${doc.type_display}.pdf`,
               documentId: doc.id,
               filePath: doc.filePath,
-              type: "application/pdf", // Default type
-              size: 0, // We don't have size from backend
-              uploaded: true, // Mark as already uploaded
-              fromDatabase: true, // Flag to indicate this is from database
+              type: "application/pdf",
+              size: 0,
+              uploaded: true,
+              fromDatabase: true,
             };
 
-            // Add to the appropriate document type array
             if (!newFiles[frontendType]) {
               newFiles[frontendType] = [];
             }
@@ -554,27 +575,20 @@ const CustomerPortal = () => {
         });
 
         setFiles(newFiles);
-
-        const docList = documents
-          .map((d) => d.type_display || d.type)
-          .join(", ");
-
-        // Store documents info for display
-        setAutoFillData({ driver, helper, po_number, documents });
-      } else {
-        console.log("No documents found for this vehicle"); // Debug log
-        setAutoFillData({ driver, helper, po_number, documents: [] });
       }
 
-      if (
-        !driver &&
-        !helper &&
-        !po_number &&
-        (!documents || documents.length === 0)
-      ) {
+      // Show success message
+      if (driver || helper) {
+        showPopupMessage(
+          `Vehicle data loaded${driver ? " with driver" : ""}${
+            helper ? " and helper" : ""
+          } info`,
+          "info"
+        );
       }
     } catch (error) {
       console.error("Failed to load vehicle data:", error);
+      showPopupMessage("Failed to load vehicle data", "warning");
     } finally {
       setLoadingVehicleData(false);
     }
@@ -916,6 +930,42 @@ const CustomerPortal = () => {
     formData.helperLanguage,
     formData.helperAadhar, // Add this
     savedDriverHelperData,
+  ]);
+
+  // Track changes to driver fields
+  useEffect(() => {
+    if (savedDriverData) {
+      const hasChanged =
+        formData.driverName !== savedDriverData.name ||
+        formData.driverPhone !== savedDriverData.phoneNo ||
+        formData.driverLanguage !== savedDriverData.language ||
+        formData.driverAadhar !== savedDriverData.uid;
+      setDriverChanged(hasChanged);
+    }
+  }, [
+    formData.driverName,
+    formData.driverPhone,
+    formData.driverLanguage,
+    formData.driverAadhar,
+    savedDriverData,
+  ]);
+
+  // Track changes to helper fields
+  useEffect(() => {
+    if (savedHelperData) {
+      const hasChanged =
+        formData.helperName !== savedHelperData.name ||
+        formData.helperPhone !== savedHelperData.phoneNo ||
+        formData.helperLanguage !== savedHelperData.language ||
+        formData.helperAadhar !== savedHelperData.uid;
+      setHelperChanged(hasChanged);
+    }
+  }, [
+    formData.helperName,
+    formData.helperPhone,
+    formData.helperLanguage,
+    formData.helperAadhar,
+    savedHelperData,
   ]);
 
   const [submitError, setSubmitError] = useState("");
@@ -1449,6 +1499,134 @@ const CustomerPortal = () => {
       setLoading(false);
     }
   };
+
+  const handleSaveDriver = async () => {
+  // Validate driver fields
+  const errors = {};
+  if (!formData.driverName.trim()) {
+    errors.driverName = "Driver name is required";
+  }
+  if (!formData.driverPhone) {
+    errors.driverPhone = "Driver phone is required";
+  }
+  if (!formData.driverAadhar || formData.driverAadhar.length !== 12) {
+    errors.driverAadhar = "Driver Aadhar must be exactly 12 digits";
+  }
+
+  if (Object.keys(errors).length > 0) {
+    setErrors((prev) => ({ ...prev, ...errors }));
+    showPopupMessage("Please fill all driver fields correctly", "warning");
+    return;
+  }
+
+  try {
+    setSavingDriver(true);
+    const driverPayload = {
+      name: formData.driverName.trim(),
+      phoneNo: formData.driverPhone,
+      type: "Driver",
+      language: formData.driverLanguage,
+      uid: formData.driverAadhar.trim(),
+    };
+
+    const response = await driversAPI.saveDriver(driverPayload);
+    console.log("Driver saved:", response.data);
+
+    setSavedDriverData(response.data.driver);
+    setDriverExists(true);
+    setDriverChanged(false);
+    
+    showPopupMessage(
+      response.data.message || "Driver info saved successfully",
+      "info"
+    );
+  } catch (error) {
+    console.error("Failed to save driver:", error);
+    
+    // Extract error message
+    let errorMessage = "Failed to save driver";
+    
+    if (error.response?.data?.error) {
+      errorMessage = error.response.data.error;
+    } else if (error.response?.data?.uid) {
+      errorMessage = Array.isArray(error.response.data.uid)
+        ? error.response.data.uid[0]
+        : error.response.data.uid;
+    } else if (error.response?.data?.phoneNo) {
+      errorMessage = Array.isArray(error.response.data.phoneNo)
+        ? error.response.data.phoneNo[0]
+        : error.response.data.phoneNo;
+    }
+    
+    showPopupMessage(errorMessage, "warning");
+  } finally {
+    setSavingDriver(false);
+  }
+};
+
+  const handleSaveHelper = async () => {
+  // Validate helper fields
+  const errors = {};
+  if (!formData.helperName.trim()) {
+    errors.helperName = "Helper name is required";
+  }
+  if (!formData.helperPhone) {
+    errors.helperPhone = "Helper phone is required";
+  }
+  if (!formData.helperAadhar || formData.helperAadhar.length !== 12) {
+    errors.helperAadhar = "Helper Aadhar must be exactly 12 digits";
+  }
+
+  if (Object.keys(errors).length > 0) {
+    setErrors((prev) => ({ ...prev, ...errors }));
+    showPopupMessage("Please fill all helper fields correctly", "warning");
+    return;
+  }
+
+  try {
+    setSavingHelper(true);
+    const helperPayload = {
+      name: formData.helperName.trim(),
+      phoneNo: formData.helperPhone,
+      type: "Helper",
+      language: formData.helperLanguage,
+      uid: formData.helperAadhar.trim(),
+    };
+
+    const response = await driversAPI.saveHelper(helperPayload);
+    console.log("Helper saved:", response.data);
+
+    setSavedHelperData(response.data.driver);
+    setHelperExists(true);
+    setHelperChanged(false);
+    
+    showPopupMessage(
+      response.data.message || "Helper info saved successfully",
+      "info"
+    );
+  } catch (error) {
+    console.error("Failed to save helper:", error);
+    
+    // Extract error message
+    let errorMessage = "Failed to save helper";
+    
+    if (error.response?.data?.error) {
+      errorMessage = error.response.data.error;
+    } else if (error.response?.data?.uid) {
+      errorMessage = Array.isArray(error.response.data.uid)
+        ? error.response.data.uid[0]
+        : error.response.data.uid;
+    } else if (error.response?.data?.phoneNo) {
+      errorMessage = Array.isArray(error.response.data.phoneNo)
+        ? error.response.data.phoneNo[0]
+        : error.response.data.phoneNo;
+    }
+    
+    showPopupMessage(errorMessage, "warning");
+  } finally {
+    setSavingHelper(false);
+  }
+};
 
   const handleNextStep = async () => {
     const currentStepFields = stepFieldMap[currentStep];
@@ -2680,6 +2858,34 @@ const CustomerPortal = () => {
                           Driver Details
                         </h2>
                       </div>
+
+                      {savedDriverData && !driverChanged && (
+                        <div className="mt-4 flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                          <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+                          <div>
+                            <p className="font-semibold">
+                              Using saved driver info
+                            </p>
+                            <p className="text-xs mt-1">
+                              You can continue with this driver or change the
+                              details below
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {driverChanged && (
+                        <div className="mt-4 flex items-start gap-3 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-700">
+                          <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+                          <div>
+                            <p className="font-semibold">Driver info changed</p>
+                            <p className="text-xs mt-1">
+                              Save the changes or add as a new driver
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="mt-6 grid gap-6">
                         <div>
                           <label
@@ -2733,9 +2939,9 @@ const CustomerPortal = () => {
                               handleInputChange("driverAadhar", e.target.value)
                             }
                             placeholder="12-digit Aadhar number"
-                            disabled={driverExists}
+                            disabled={driverExists && !driverChanged}
                             className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                              driverExists
+                              driverExists && !driverChanged
                                 ? "cursor-not-allowed bg-gray-100"
                                 : ""
                             } ${
@@ -2745,9 +2951,9 @@ const CustomerPortal = () => {
                             }`}
                             maxLength={12}
                           />
-                          {driverExists && (
+                          {driverExists && !driverChanged && (
                             <p className="mt-1 text-xs text-gray-500">
-                              Aadhar number is locked and cannot be changed
+                              Aadhar number is locked for saved driver
                             </p>
                           )}
                           {errors.driverAadhar && (
@@ -2982,31 +3188,55 @@ const CustomerPortal = () => {
                           )}
                         </div>
 
-                        {!driverExists && (
-                          <div>
-                            <button
-                              type="button"
-                              onClick={handleAddDriver}
-                              disabled={loading}
-                              className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-green-300"
-                            >
-                              {loading ? (
-                                <>
-                                  <Loader className="h-4 w-4 animate-spin" />
-                                  Adding Driver...
-                                </>
-                              ) : (
-                                <>
-                                  <User className="h-4 w-4" />
-                                  Add Driver
-                                </>
-                              )}
-                            </button>
-                            <p className="mt-2 text-xs text-gray-500">
-                              Click to save this driver's details permanently
-                            </p>
-                          </div>
-                        )}
+                        {/* Action buttons */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            type="button"
+                            onClick={handleSaveDriver}
+                            disabled={
+                              savingDriver || (!driverChanged && driverExists)
+                            }
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-blue-300"
+                          >
+                            {savingDriver ? (
+                              <>
+                                <Loader className="h-4 w-4 animate-spin" />
+                                Saving...
+                              </>
+                            ) : (
+                              <>
+                                <User className="h-4 w-4" />
+                                Save Driver Info
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleAddDriver}
+                            disabled={loading || savingDriver}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-green-300"
+                          >
+                            {loading ? (
+                              <>
+                                <Loader className="h-4 w-4 animate-spin" />
+                                Adding...
+                              </>
+                            ) : (
+                              <>
+                                <User className="h-4 w-4" />
+                                Add New Driver
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          {driverChanged
+                            ? "Save to update existing driver or Add New to create a separate entry"
+                            : driverExists
+                            ? "Driver info is saved. Change any field to update."
+                            : "Fill in driver details and save or add as new"}
+                        </p>
                       </div>
                     </section>
 
@@ -3020,6 +3250,34 @@ const CustomerPortal = () => {
                           Helper Details
                         </h2>
                       </div>
+
+                      {savedHelperData && !helperChanged && (
+                        <div className="mt-4 flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                          <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+                          <div>
+                            <p className="font-semibold">
+                              Using saved helper info
+                            </p>
+                            <p className="text-xs mt-1">
+                              You can continue with this helper or change the
+                              details below
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {helperChanged && (
+                        <div className="mt-4 flex items-start gap-3 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-700">
+                          <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+                          <div>
+                            <p className="font-semibold">Helper info changed</p>
+                            <p className="text-xs mt-1">
+                              Save the changes or add as a new helper
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="mt-6 grid gap-6">
                         <div>
                           <label
@@ -3060,7 +3318,7 @@ const CustomerPortal = () => {
                             htmlFor="helperAadhar"
                             className="text-sm font-medium text-gray-700"
                           >
-                            Driver Aadhar No.
+                            Helper Aadhar No.
                             <span className="text-red-500"> *</span>
                           </label>
                           <input
@@ -3073,9 +3331,9 @@ const CustomerPortal = () => {
                               handleInputChange("helperAadhar", e.target.value)
                             }
                             placeholder="12-digit Aadhar number"
-                            disabled={helperExists}
+                            disabled={helperExists && !helperChanged}
                             className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                              helperExists
+                              helperExists && !helperChanged
                                 ? "cursor-not-allowed bg-gray-100"
                                 : ""
                             } ${
@@ -3085,9 +3343,9 @@ const CustomerPortal = () => {
                             }`}
                             maxLength={12}
                           />
-                          {helperExists && (
+                          {helperExists && !helperChanged && (
                             <p className="mt-1 text-xs text-gray-500">
-                              Aadhar number is locked and cannot be changed
+                              Aadhar number is locked for saved helper
                             </p>
                           )}
                           {errors.helperAadhar && (
@@ -3327,31 +3585,55 @@ const CustomerPortal = () => {
                           )}
                         </div>
 
-                        {!helperExists && (
-                          <div>
-                            <button
-                              type="button"
-                              onClick={handleAddHelper}
-                              disabled={loading}
-                              className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-green-300"
-                            >
-                              {loading ? (
-                                <>
-                                  <Loader className="h-4 w-4 animate-spin" />
-                                  Adding Helper...
-                                </>
-                              ) : (
-                                <>
-                                  <User className="h-4 w-4" />
-                                  Add Helper
-                                </>
-                              )}
-                            </button>
-                            <p className="mt-2 text-xs text-gray-500">
-                              Click to save this helper's details permanently
-                            </p>
-                          </div>
-                        )}
+                        {/* Action buttons */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            type="button"
+                            onClick={handleSaveHelper}
+                            disabled={
+                              savingHelper || (!helperChanged && helperExists)
+                            }
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-blue-300"
+                          >
+                            {savingHelper ? (
+                              <>
+                                <Loader className="h-4 w-4 animate-spin" />
+                                Saving...
+                              </>
+                            ) : (
+                              <>
+                                <User className="h-4 w-4" />
+                                Save Helper Info
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleAddHelper}
+                            disabled={loading || savingHelper}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-green-300"
+                          >
+                            {loading ? (
+                              <>
+                                <Loader className="h-4 w-4 animate-spin" />
+                                Adding...
+                              </>
+                            ) : (
+                              <>
+                                <User className="h-4 w-4" />
+                                Add New Helper
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          {helperChanged
+                            ? "Save to update existing helper or Add New to create a separate entry"
+                            : helperExists
+                            ? "Helper info is saved. Change any field to update."
+                            : "Fill in helper details and save or add as new"}
+                        </p>
                       </div>
                     </section>
                   </div>

@@ -16,3 +16,22 @@ class DriverHelperValidateSerializer(serializers.Serializer):
     )
     type = serializers.ChoiceField(choices=['Driver', 'Helper'])
     language = serializers.CharField(default='en')
+    uid = serializers.CharField(
+        required=True,  # Make it required
+        max_length=255,
+        help_text='Unique identifier (Aadhar number)'
+    )
+    
+    def validate_uid(self, value):
+        """Validate Aadhar number format"""
+        if not value or not value.strip():
+            raise serializers.ValidationError("Aadhar number is required")
+        
+        # Remove any spaces or dashes
+        cleaned = value.replace(' ', '').replace('-', '')
+        
+        # Check if it's 12 digits
+        if not cleaned.isdigit() or len(cleaned) != 12:
+            raise serializers.ValidationError("Aadhar number must be exactly 12 digits")
+        
+        return cleaned
