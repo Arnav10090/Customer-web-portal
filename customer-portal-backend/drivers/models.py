@@ -30,6 +30,11 @@ class DriverHelper(models.Model):
     """
     Driver and Helper information (TTMS DriverHelper table)
     """
+    uid = models.CharField(
+        max_length=255,
+        unique=True,
+        help_text='Unique identifier for driver/helper (Aadhar number)'
+    )
     name = models.CharField(max_length=100)
     type = models.CharField(max_length=10, choices=DRIVER_TYPES)
     phoneNo = models.CharField(
