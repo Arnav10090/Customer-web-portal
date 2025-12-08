@@ -61,60 +61,61 @@ class VehicleViewSet(viewsets.ModelViewSet):
             vehicle.customer = request.user
             vehicle.save()
         
-        # Get the most recent submission for this vehicle to auto-fill
-        from submissions.models import GateEntrySubmission
-        from podrivervehicletagging.models import PODriverVehicleTagging, DriverVehicleTagging
+        # Get the most recent driver/helper for this vehicle from DriverVehicleTagging
+        from podrivervehicletagging.models import DriverVehicleTagging, PODriverVehicleTagging
         
-        latest_submission = GateEntrySubmission.objects.filter(
-            vehicle=vehicle
-        ).select_related('driver', 'helper').order_by('-created_at').first()
+        latest_tagging = (
+            DriverVehicleTagging.objects.filter(vehicleId=vehicle)
+            .select_related('driverId', 'helperId')
+            .order_by('-created')
+            .first()
+        )
         
         driver_data = None
         helper_data = None
         po_number = None
         documents_data = []
         
-        if latest_submission:
+        if latest_tagging:
             # Get driver info
-            if latest_submission.driver:
+            if latest_tagging.driverId:
                 driver_data = {
-                    "id": latest_submission.driver.id,
-                    "name": latest_submission.driver.name,
-                    "phoneNo": latest_submission.driver.phoneNo,
-                    "language": latest_submission.driver.language,
-                    "type": latest_submission.driver.type
+                    "id": latest_tagging.driverId.id,
+                    "name": latest_tagging.driverId.name,
+                    "phoneNo": latest_tagging.driverId.phoneNo,
+                    "language": latest_tagging.driverId.language,
+                    "type": latest_tagging.driverId.type,
+                    "uid": latest_tagging.driverId.uid,  # Add Aadhar
                 }
             
             # Get helper info
-            if latest_submission.helper:
+            if latest_tagging.helperId:
                 helper_data = {
-                    "id": latest_submission.helper.id,
-                    "name": latest_submission.helper.name,
-                    "phoneNo": latest_submission.helper.phoneNo,
-                    "language": latest_submission.helper.language,
-                    "type": latest_submission.helper.type
+                    "id": latest_tagging.helperId.id,
+                    "name": latest_tagging.helperId.name,
+                    "phoneNo": latest_tagging.helperId.phoneNo,
+                    "language": latest_tagging.helperId.language,
+                    "type": latest_tagging.helperId.type,
+                    "uid": latest_tagging.helperId.uid,  # Add Aadhar
                 }
             
-            # Get PO number from the latest submission
+            # Get PO number
             try:
-                # Find PODriverVehicleTagging through DriverVehicleTagging
-                driver_vehicle_tagging = DriverVehicleTagging.objects.filter(
-                    vehicleId=vehicle,
-                    driverId=latest_submission.driver
-                ).order_by('-created').first()
+                po_tagging = (
+                    PODriverVehicleTagging.objects.filter(
+                        driverVehicleTaggingId=latest_tagging
+                    )
+                    .select_related('poId')
+                    .order_by('-created')
+                    .first()
+                )
                 
-                if driver_vehicle_tagging:
-                    po_tagging = PODriverVehicleTagging.objects.filter(
-                        driverVehicleTaggingId=driver_vehicle_tagging
-                    ).select_related('poId').order_by('-created').first()
-                    
-                    if po_tagging and po_tagging.poId:
-                        po_number = po_tagging.poId.id  # PO number is the ID field
+                if po_tagging and po_tagging.poId:
+                    po_number = po_tagging.poId.id
             except Exception as e:
                 print(f"Could not fetch PO number: {e}")
         
         # Get all documents for this vehicle from DocumentControl
-        # FIXED: Get documents by vehicle ID, not just vehicle-related types
         documents = list(DocumentControl.objects.filter(
             referenceId=vehicle.id,
             type__in=['vehicle_registration', 'vehicle_insurance', 'vehicle_puc']
@@ -189,51 +190,58 @@ class VehicleViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        # Get the most recent submission for auto-fill
-        from submissions.models import GateEntrySubmission
-        from podrivervehicletagging.models import PODriverVehicleTagging, DriverVehicleTagging
+        # Get the most recent driver/helper for this vehicle from DriverVehicleTagging
+        from podrivervehicletagging.models import DriverVehicleTagging
         
-        latest_submission = GateEntrySubmission.objects.filter(
-            vehicle=vehicle
-        ).select_related('driver', 'helper').order_by('-created_at').first()
+        latest_tagging = (
+            DriverVehicleTagging.objects.filter(vehicleId=vehicle)
+            .select_related('driverId', 'helperId')
+            .order_by('-created')
+            .first()
+        )
         
         driver_data = None
         helper_data = None
-        po_number = None  # ADD THIS
+        po_number = None
         
-        if latest_submission:
-            if latest_submission.driver:
+        if latest_tagging:
+            # Get driver info
+            if latest_tagging.driverId:
                 driver_data = {
-                    "id": latest_submission.driver.id,
-                    "name": latest_submission.driver.name,
-                    "phoneNo": latest_submission.driver.phoneNo,
-                    "language": latest_submission.driver.language,
-                    "type": latest_submission.driver.type
+                    "id": latest_tagging.driverId.id,
+                    "name": latest_tagging.driverId.name,
+                    "phoneNo": latest_tagging.driverId.phoneNo,
+                    "language": latest_tagging.driverId.language,
+                    "type": latest_tagging.driverId.type,
+                    "uid": latest_tagging.driverId.uid,  # Add Aadhar
                 }
             
-            if latest_submission.helper:
+            # Get helper info
+            if latest_tagging.helperId:
                 helper_data = {
-                    "id": latest_submission.helper.id,
-                    "name": latest_submission.helper.name,
-                    "phoneNo": latest_submission.helper.phoneNo,
-                    "language": latest_submission.helper.language,
-                    "type": latest_submission.helper.type
+                    "id": latest_tagging.helperId.id,
+                    "name": latest_tagging.helperId.name,
+                    "phoneNo": latest_tagging.helperId.phoneNo,
+                    "language": latest_tagging.helperId.language,
+                    "type": latest_tagging.helperId.type,
+                    "uid": latest_tagging.helperId.uid,  # Add Aadhar
                 }
             
-            # ADD THIS SECTION TO GET PO NUMBER
+            # Get PO number from PODriverVehicleTagging
+            from podrivervehicletagging.models import PODriverVehicleTagging
+            
             try:
-                driver_vehicle_tagging = DriverVehicleTagging.objects.filter(
-                    vehicleId=vehicle,
-                    driverId=latest_submission.driver
-                ).order_by('-created').first()
+                po_tagging = (
+                    PODriverVehicleTagging.objects.filter(
+                        driverVehicleTaggingId=latest_tagging
+                    )
+                    .select_related('poId')
+                    .order_by('-created')
+                    .first()
+                )
                 
-                if driver_vehicle_tagging:
-                    po_tagging = PODriverVehicleTagging.objects.filter(
-                        driverVehicleTaggingId=driver_vehicle_tagging
-                    ).select_related('poId').order_by('-created').first()
-                    
-                    if po_tagging and po_tagging.poId:
-                        po_number = po_tagging.poId.id
+                if po_tagging and po_tagging.poId:
+                    po_number = po_tagging.poId.id
             except Exception as e:
                 print(f"Could not fetch PO number: {e}")
         
@@ -280,7 +288,7 @@ class VehicleViewSet(viewsets.ModelViewSet):
             "vehicle": VehicleDetailsSerializer(vehicle).data,
             "driver": driver_data,
             "helper": helper_data,
-            "po_number": po_number,  # ADD THIS
+            "po_number": po_number,
             "documents": DocumentControlSerializer(documents, many=True).data
         })
 
