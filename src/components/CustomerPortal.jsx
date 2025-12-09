@@ -25,6 +25,7 @@ import {
   vehiclesAPI,
   poDetailsAPI,
 } from "../services/api";
+import DriverHelperModal from "./DriverHelperModal";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const ACCEPTED_TYPES = [
@@ -35,15 +36,17 @@ const ACCEPTED_TYPES = [
 ];
 
 const compareDriverHelperData = (data1, data2) => {
+  if (!data1 || !data2) return false;
+  
   return (
-    data1.driverName === data2.driverName &&
-    data1.driverPhone === data2.driverPhone &&
-    data1.driverLanguage === data2.driverLanguage &&
-    data1.driverAadhar === data2.driverAadhar && // Add this
-    data1.helperName === data2.helperName &&
-    data1.helperPhone === data2.helperPhone &&
-    data1.helperLanguage === data2.helperLanguage &&
-    data1.helperAadhar === data2.helperAadhar // Add this
+    (data1.driverName || "") === (data2.driverName || "") &&
+    (data1.driverPhone || "") === (data2.driverPhone || "") &&
+    (data1.driverLanguage || "en") === (data2.driverLanguage || "en") &&
+    (data1.driverAadhar || "") === (data2.driverAadhar || "") &&
+    (data1.helperName || "") === (data2.helperName || "") &&
+    (data1.helperPhone || "") === (data2.helperPhone || "") &&
+    (data1.helperLanguage || "en") === (data2.helperLanguage || "en") &&
+    (data1.helperAadhar || "") === (data2.helperAadhar || "")
   );
 };
 
@@ -489,17 +492,21 @@ const CustomerPortal = () => {
       );
       const vehicleId = vehicleResponse.data.vehicle.id;
 
-      // Fetch driver/helper data by vehicle ID
+      // Fetch ALL drivers/helpers for this vehicle
       const driverHelperResponse = await driversAPI.getByVehicle(vehicleId);
-      const { driver, helper } = driverHelperResponse.data;
+      const { drivers = [], helpers = [] } = driverHelperResponse.data;
 
-      // Prepare updates object
+      // Store all drivers and helpers for dropdowns
+      setAllDrivers(drivers);
+      setAllHelpers(helpers);
+
+      // Auto-fill with most recent driver/helper (first in list)
       const updates = {
         vehicleNumber: vehicleNumber,
       };
 
-      // Auto-fill driver data if available
-      if (driver) {
+      if (drivers.length > 0) {
+        const driver = drivers[0];
         updates.driverName = driver.name || "";
         updates.driverPhone = driver.phoneNo || "";
         updates.driverLanguage = driver.language || "en";
@@ -508,8 +515,8 @@ const CustomerPortal = () => {
         setDriverExists(!!driver.uid);
       }
 
-      // Auto-fill helper data if available
-      if (helper) {
+      if (helpers.length > 0) {
+        const helper = helpers[0];
         updates.helperName = helper.name || "";
         updates.helperPhone = helper.phoneNo || "";
         updates.helperLanguage = helper.language || "en";
@@ -518,7 +525,6 @@ const CustomerPortal = () => {
         setHelperExists(!!helper.uid);
       }
 
-      // Apply all updates at once
       setFormData((prev) => ({
         ...prev,
         ...updates,
@@ -530,7 +536,6 @@ const CustomerPortal = () => {
       );
       const { documents, po_number } = completeDataResponse.data;
 
-      // Auto-fill PO number
       if (po_number) {
         setFormData((prev) => ({
           ...prev,
@@ -538,7 +543,6 @@ const CustomerPortal = () => {
         }));
       }
 
-      // Process documents
       if (documents && documents.length > 0) {
         const docTypeMapping = {
           vehicle_registration: "vehicleRegistration",
@@ -577,11 +581,10 @@ const CustomerPortal = () => {
         setFiles(newFiles);
       }
 
-      // Show success message
-      if (driver || helper) {
+      if (drivers.length > 0 || helpers.length > 0) {
         showPopupMessage(
-          `Vehicle data loaded${driver ? " with driver" : ""}${
-            helper ? " and helper" : ""
+          `Vehicle data loaded${drivers.length > 0 ? " with driver(s)" : ""}${
+            helpers.length > 0 ? " and helper(s)" : ""
           } info`,
           "info"
         );
@@ -821,6 +824,21 @@ const CustomerPortal = () => {
   const [helperPrefHighlight, setHelperPrefHighlight] = useState(0);
   const helperPrefButtonRef = useRef(null);
   const helperPrefListRef = useRef(null);
+  // Modal states
+  const [showDriverModal, setShowDriverModal] = useState(false);
+  const [showHelperModal, setShowHelperModal] = useState(false);
+
+  // Driver/Helper dropdown states
+  const [allDrivers, setAllDrivers] = useState([]);
+  const [allHelpers, setAllHelpers] = useState([]);
+  const [driverDropdownOpen, setDriverDropdownOpen] = useState(false);
+  const [helperDropdownOpen, setHelperDropdownOpen] = useState(false);
+  const [driverSearch, setDriverSearch] = useState("");
+  const [helperSearch, setHelperSearch] = useState("");
+  const driverInputRef = useRef(null);
+  const helperInputRef = useRef(null);
+  const driverListRef2 = useRef(null);
+  const helperListRef2 = useRef(null);
 
   // click-away to close preferred language dropdown
   useEffect(() => {
@@ -840,6 +858,38 @@ const CustomerPortal = () => {
     }
     return () => document.removeEventListener("click", onPrefClickAway);
   }, [prefDropdownOpen]);
+
+  // Click-away for driver dropdown
+  useEffect(() => {
+    const onDriverClickAway = (e) => {
+      if (driverInputRef.current && driverInputRef.current.contains(e.target)) {
+        return;
+      }
+      if (driverListRef2.current && driverListRef2.current.contains(e.target))
+        return;
+      setDriverDropdownOpen(false);
+    };
+    if (driverDropdownOpen) {
+      document.addEventListener("click", onDriverClickAway);
+    }
+    return () => document.removeEventListener("click", onDriverClickAway);
+  }, [driverDropdownOpen]);
+
+  // Click-away for helper dropdown
+  useEffect(() => {
+    const onHelperClickAway = (e) => {
+      if (helperInputRef.current && helperInputRef.current.contains(e.target)) {
+        return;
+      }
+      if (helperListRef2.current && helperListRef2.current.contains(e.target))
+        return;
+      setHelperDropdownOpen(false);
+    };
+    if (helperDropdownOpen) {
+      document.addEventListener("click", onHelperClickAway);
+    }
+    return () => document.removeEventListener("click", onHelperClickAway);
+  }, [helperDropdownOpen]);
 
   // click-away to close helper language dropdown
   useEffect(() => {
@@ -1336,12 +1386,15 @@ const CustomerPortal = () => {
           }
         }
         if (field === "driverAadhar") {
-          const result = validateAadhar(
-            formData.driverAadhar,
-            "Driver Aadhar number"
-          );
-          if (result) {
-            validationErrors.driverAadhar = result;
+          // Skip validation if driver exists and hasn't changed
+          if (!(driverExists && !driverChanged)) {
+            if (!formData.driverAadhar || !formData.driverAadhar.trim()) {
+              validationErrors.driverAadhar = "Driver Aadhar number is required.";
+            } else if (formData.driverAadhar.trim().length !== 12) {
+              validationErrors.driverAadhar = "Driver Aadhar must be exactly 12 digits.";
+            } else if (!/^\d{12}$/.test(formData.driverAadhar.trim())) {
+              validationErrors.driverAadhar = "Driver Aadhar must contain only digits.";
+            }
           }
         }
         if (field === "helperPhone") {
@@ -1359,12 +1412,15 @@ const CustomerPortal = () => {
           }
         }
         if (field === "helperAadhar") {
-          const result = validateAadhar(
-            formData.helperAadhar,
-            "Helper Aadhar number"
-          );
-          if (result) {
-            validationErrors.helperAadhar = result;
+          // Skip validation if helper exists and hasn't changed
+          if (!(helperExists && !helperChanged)) {
+            if (!formData.helperAadhar || !formData.helperAadhar.trim()) {
+              validationErrors.helperAadhar = "Helper Aadhar number is required.";
+            } else if (formData.helperAadhar.trim().length !== 12) {
+              validationErrors.helperAadhar = "Helper Aadhar must be exactly 12 digits.";
+            } else if (!/^\d{12}$/.test(formData.helperAadhar.trim())) {
+              validationErrors.helperAadhar = "Helper Aadhar must contain only digits.";
+            }
           }
         }
         if (field === "driverLanguage" && !formData.driverLanguage) {
@@ -1407,7 +1463,7 @@ const CustomerPortal = () => {
       setErrors((previous) => ({ ...previous, ...validationErrors }));
       return Object.keys(validationErrors).length === 0;
     },
-    [files, formData]
+    [files, formData, driverExists, driverChanged, helperExists, helperChanged]
   );
 
   const handleAddDriver = async () => {
@@ -1500,133 +1556,247 @@ const CustomerPortal = () => {
     }
   };
 
-  const handleSaveDriver = async () => {
-  // Validate driver fields
-  const errors = {};
-  if (!formData.driverName.trim()) {
-    errors.driverName = "Driver name is required";
-  }
-  if (!formData.driverPhone) {
-    errors.driverPhone = "Driver phone is required";
-  }
-  if (!formData.driverAadhar || formData.driverAadhar.length !== 12) {
-    errors.driverAadhar = "Driver Aadhar must be exactly 12 digits";
-  }
+  // Handle driver modal save
+  const handleDriverModalSave = async (driverData) => {
+    try {
+      setLoading(true);
+      const payload = {
+        name: driverData.name.trim(),
+        phoneNo: driverData.phone,
+        type: "Driver",
+        language: driverData.language,
+        uid: driverData.aadhar.trim(),
+      };
 
-  if (Object.keys(errors).length > 0) {
-    setErrors((prev) => ({ ...prev, ...errors }));
-    showPopupMessage("Please fill all driver fields correctly", "warning");
-    return;
-  }
+      const response = await driversAPI.validateOrCreate(payload);
+      const newDriver = response.data.driver;
 
-  try {
-    setSavingDriver(true);
-    const driverPayload = {
-      name: formData.driverName.trim(),
-      phoneNo: formData.driverPhone,
-      type: "Driver",
-      language: formData.driverLanguage,
-      uid: formData.driverAadhar.trim(),
-    };
+      // Update form with new driver data
+      setFormData((prev) => ({
+        ...prev,
+        driverName: newDriver.name,
+        driverPhone: newDriver.phoneNo,
+        driverLanguage: newDriver.language,
+        driverAadhar: newDriver.uid,
+      }));
 
-    const response = await driversAPI.saveDriver(driverPayload);
-    console.log("Driver saved:", response.data);
+      // Add to drivers list
+      setAllDrivers((prev) => [newDriver, ...prev]);
+      setSavedDriverData(newDriver);
+      setDriverExists(true);
 
-    setSavedDriverData(response.data.driver);
-    setDriverExists(true);
-    setDriverChanged(false);
-    
-    showPopupMessage(
-      response.data.message || "Driver info saved successfully",
-      "info"
-    );
-  } catch (error) {
-    console.error("Failed to save driver:", error);
-    
-    // Extract error message
-    let errorMessage = "Failed to save driver";
-    
-    if (error.response?.data?.error) {
-      errorMessage = error.response.data.error;
-    } else if (error.response?.data?.uid) {
-      errorMessage = Array.isArray(error.response.data.uid)
-        ? error.response.data.uid[0]
-        : error.response.data.uid;
-    } else if (error.response?.data?.phoneNo) {
-      errorMessage = Array.isArray(error.response.data.phoneNo)
-        ? error.response.data.phoneNo[0]
-        : error.response.data.phoneNo;
+      setShowDriverModal(false);
+      showPopupMessage("New driver added successfully", "info");
+    } catch (error) {
+      console.error("Failed to add driver:", error);
+      showPopupMessage(
+        error.response?.data?.error || "Failed to add driver",
+        "warning"
+      );
+    } finally {
+      setLoading(false);
     }
-    
-    showPopupMessage(errorMessage, "warning");
-  } finally {
-    setSavingDriver(false);
-  }
-};
+  };
+
+  // Handle helper modal save
+  const handleHelperModalSave = async (helperData) => {
+    try {
+      setLoading(true);
+      const payload = {
+        name: helperData.name.trim(),
+        phoneNo: helperData.phone,
+        type: "Helper",
+        language: helperData.language,
+        uid: helperData.aadhar.trim(),
+      };
+
+      const response = await driversAPI.validateOrCreate(payload);
+      const newHelper = response.data.driver;
+
+      // Update form with new helper data
+      setFormData((prev) => ({
+        ...prev,
+        helperName: newHelper.name,
+        helperPhone: newHelper.phoneNo,
+        helperLanguage: newHelper.language,
+        helperAadhar: newHelper.uid,
+      }));
+
+      // Add to helpers list
+      setAllHelpers((prev) => [newHelper, ...prev]);
+      setSavedHelperData(newHelper);
+      setHelperExists(true);
+
+      setShowHelperModal(false);
+      showPopupMessage("New helper added successfully", "info");
+    } catch (error) {
+      console.error("Failed to add helper:", error);
+      showPopupMessage(
+        error.response?.data?.error || "Failed to add helper",
+        "warning"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle driver selection from dropdown
+  const handleDriverSelect = (driver) => {
+    setFormData((prev) => ({
+      ...prev,
+      driverName: driver.name,
+      driverPhone: driver.phoneNo,
+      driverLanguage: driver.language,
+      driverAadhar: driver.uid,
+    }));
+    setDriverSearch(driver.name);
+    setDriverDropdownOpen(false);
+    setSavedDriverData(driver);
+    setDriverExists(true);
+  };
+
+  // Handle helper selection from dropdown
+  const handleHelperSelect = (helper) => {
+    setFormData((prev) => ({
+      ...prev,
+      helperName: helper.name,
+      helperPhone: helper.phoneNo,
+      helperLanguage: helper.language,
+      helperAadhar: helper.uid,
+    }));
+    setHelperSearch(helper.name);
+    setHelperDropdownOpen(false);
+    setSavedHelperData(helper);
+    setHelperExists(true);
+  };
+
+  const handleSaveDriver = async () => {
+    // Validate driver fields
+    const errors = {};
+    if (!formData.driverName.trim()) {
+      errors.driverName = "Driver name is required";
+    }
+    if (!formData.driverPhone) {
+      errors.driverPhone = "Driver phone is required";
+    }
+    if (!formData.driverAadhar || formData.driverAadhar.length !== 12) {
+      errors.driverAadhar = "Driver Aadhar must be exactly 12 digits";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setErrors((prev) => ({ ...prev, ...errors }));
+      showPopupMessage("Please fill all driver fields correctly", "warning");
+      return;
+    }
+
+    try {
+      setSavingDriver(true);
+      const driverPayload = {
+        name: formData.driverName.trim(),
+        phoneNo: formData.driverPhone,
+        type: "Driver",
+        language: formData.driverLanguage,
+        uid: formData.driverAadhar.trim(),
+      };
+
+      const response = await driversAPI.saveDriver(driverPayload);
+      console.log("Driver saved:", response.data);
+
+      setSavedDriverData(response.data.driver);
+      setDriverExists(true);
+      setDriverChanged(false);
+
+      showPopupMessage(
+        response.data.message || "Driver info saved successfully",
+        "info"
+      );
+    } catch (error) {
+      console.error("Failed to save driver:", error);
+
+      // Extract error message
+      let errorMessage = "Failed to save driver";
+
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.response?.data?.uid) {
+        errorMessage = Array.isArray(error.response.data.uid)
+          ? error.response.data.uid[0]
+          : error.response.data.uid;
+      } else if (error.response?.data?.phoneNo) {
+        errorMessage = Array.isArray(error.response.data.phoneNo)
+          ? error.response.data.phoneNo[0]
+          : error.response.data.phoneNo;
+      }
+
+      showPopupMessage(errorMessage, "warning");
+    } finally {
+      setSavingDriver(false);
+    }
+  };
 
   const handleSaveHelper = async () => {
-  // Validate helper fields
-  const errors = {};
-  if (!formData.helperName.trim()) {
-    errors.helperName = "Helper name is required";
-  }
-  if (!formData.helperPhone) {
-    errors.helperPhone = "Helper phone is required";
-  }
-  if (!formData.helperAadhar || formData.helperAadhar.length !== 12) {
-    errors.helperAadhar = "Helper Aadhar must be exactly 12 digits";
-  }
-
-  if (Object.keys(errors).length > 0) {
-    setErrors((prev) => ({ ...prev, ...errors }));
-    showPopupMessage("Please fill all helper fields correctly", "warning");
-    return;
-  }
-
-  try {
-    setSavingHelper(true);
-    const helperPayload = {
-      name: formData.helperName.trim(),
-      phoneNo: formData.helperPhone,
-      type: "Helper",
-      language: formData.helperLanguage,
-      uid: formData.helperAadhar.trim(),
-    };
-
-    const response = await driversAPI.saveHelper(helperPayload);
-    console.log("Helper saved:", response.data);
-
-    setSavedHelperData(response.data.driver);
-    setHelperExists(true);
-    setHelperChanged(false);
-    
-    showPopupMessage(
-      response.data.message || "Helper info saved successfully",
-      "info"
-    );
-  } catch (error) {
-    console.error("Failed to save helper:", error);
-    
-    // Extract error message
-    let errorMessage = "Failed to save helper";
-    
-    if (error.response?.data?.error) {
-      errorMessage = error.response.data.error;
-    } else if (error.response?.data?.uid) {
-      errorMessage = Array.isArray(error.response.data.uid)
-        ? error.response.data.uid[0]
-        : error.response.data.uid;
-    } else if (error.response?.data?.phoneNo) {
-      errorMessage = Array.isArray(error.response.data.phoneNo)
-        ? error.response.data.phoneNo[0]
-        : error.response.data.phoneNo;
+    // Validate helper fields
+    const errors = {};
+    if (!formData.helperName.trim()) {
+      errors.helperName = "Helper name is required";
     }
-    
-    showPopupMessage(errorMessage, "warning");
-  } finally {
-    setSavingHelper(false);
-  }
-};
+    if (!formData.helperPhone) {
+      errors.helperPhone = "Helper phone is required";
+    }
+    if (!formData.helperAadhar || formData.helperAadhar.length !== 12) {
+      errors.helperAadhar = "Helper Aadhar must be exactly 12 digits";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setErrors((prev) => ({ ...prev, ...errors }));
+      showPopupMessage("Please fill all helper fields correctly", "warning");
+      return;
+    }
+
+    try {
+      setSavingHelper(true);
+      const helperPayload = {
+        name: formData.helperName.trim(),
+        phoneNo: formData.helperPhone,
+        type: "Helper",
+        language: formData.helperLanguage,
+        uid: formData.helperAadhar.trim(),
+      };
+
+      const response = await driversAPI.saveHelper(helperPayload);
+      console.log("Helper saved:", response.data);
+
+      setSavedHelperData(response.data.driver);
+      setHelperExists(true);
+      setHelperChanged(false);
+
+      showPopupMessage(
+        response.data.message || "Helper info saved successfully",
+        "info"
+      );
+    } catch (error) {
+      console.error("Failed to save helper:", error);
+
+      // Extract error message
+      let errorMessage = "Failed to save helper";
+
+      if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.response?.data?.uid) {
+        errorMessage = Array.isArray(error.response.data.uid)
+          ? error.response.data.uid[0]
+          : error.response.data.uid;
+      } else if (error.response?.data?.phoneNo) {
+        errorMessage = Array.isArray(error.response.data.phoneNo)
+          ? error.response.data.phoneNo[0]
+          : error.response.data.phoneNo;
+      }
+
+      showPopupMessage(errorMessage, "warning");
+    } finally {
+      setSavingHelper(false);
+    }
+  };
 
   const handleNextStep = async () => {
     const currentStepFields = stepFieldMap[currentStep];
@@ -1735,16 +1905,50 @@ const CustomerPortal = () => {
 
     // If on step 1, save driver and helper info ONLY if data has changed
     if (currentStep === 1) {
-      // Create current data snapshot
+      // Validate that all required fields are filled before proceeding
+      const step1Errors = {};
+      
+      // Driver validation
+      if (!formData.driverName || !formData.driverName.trim()) {
+        step1Errors.driverName = "Driver name is required";
+      }
+      if (!formData.driverPhone) {
+        step1Errors.driverPhone = "Driver phone is required";
+      }
+      if (!formData.driverAadhar || formData.driverAadhar.trim().length !== 12) {
+        step1Errors.driverAadhar = "Driver Aadhar must be exactly 12 digits";
+      }
+      
+      // Helper validation
+      if (!formData.helperName || !formData.helperName.trim()) {
+        step1Errors.helperName = "Helper name is required";
+      }
+      if (!formData.helperPhone) {
+        step1Errors.helperPhone = "Helper phone is required";
+      }
+      if (!formData.helperAadhar || formData.helperAadhar.trim().length !== 12) {
+        step1Errors.helperAadhar = "Helper Aadhar must be exactly 12 digits";
+      }
+      
+      if (Object.keys(step1Errors).length > 0) {
+        setErrors((prev) => ({ ...prev, ...step1Errors }));
+        showPopupMessage(
+          "Please fill in all driver and helper fields correctly",
+          "warning"
+        );
+        return;
+      }
+
+      // Create current data snapshot - with safety checks
       const currentDriverHelperData = {
-        driverName: formData.driverName.trim(),
-        driverPhone: formData.driverPhone,
-        driverLanguage: formData.driverLanguage,
-        driverAadhar: formData.driverAadhar.trim(), // Add this
-        helperName: formData.helperName.trim(),
-        helperPhone: formData.helperPhone,
-        helperLanguage: formData.helperLanguage,
-        helperAadhar: formData.helperAadhar.trim(), // Add this
+        driverName: (formData.driverName || "").trim(),
+        driverPhone: formData.driverPhone || "",
+        driverLanguage: formData.driverLanguage || "en",
+        driverAadhar: (formData.driverAadhar || "").trim(),
+        helperName: (formData.helperName || "").trim(),
+        helperPhone: formData.helperPhone || "",
+        helperLanguage: formData.helperLanguage || "en",
+        helperAadhar: (formData.helperAadhar || "").trim(),
       };
 
       // Check if data has changed since last save
@@ -1761,11 +1965,11 @@ const CustomerPortal = () => {
 
           // Save driver info
           const driverPayload = {
-            name: formData.driverName.trim(),
-            phoneNo: formData.driverPhone,
+            name: currentDriverHelperData.driverName,
+            phoneNo: currentDriverHelperData.driverPhone,
             type: "Driver",
-            language: formData.driverLanguage,
-            uid: formData.driverAadhar.trim(),
+            language: currentDriverHelperData.driverLanguage,
+            uid: currentDriverHelperData.driverAadhar,
           };
 
           const driverResponse = await driversAPI.validateOrCreate(
@@ -1775,11 +1979,11 @@ const CustomerPortal = () => {
 
           // Save helper info
           const helperPayload = {
-            name: formData.helperName.trim(),
-            phoneNo: formData.helperPhone,
+            name: currentDriverHelperData.helperName,
+            phoneNo: currentDriverHelperData.helperPhone,
             type: "Helper",
-            language: formData.helperLanguage,
-            uid: formData.helperAadhar.trim(),
+            language: currentDriverHelperData.helperLanguage,
+            uid: currentDriverHelperData.helperAadhar,
           };
 
           const helperResponse = await driversAPI.validateOrCreate(
@@ -2894,22 +3098,60 @@ const CustomerPortal = () => {
                           >
                             Driver name<span className="text-red-500"> *</span>
                           </label>
-                          <input
-                            id="driverName"
-                            name="driverName"
-                            type="text"
-                            value={formData.driverName}
-                            onChange={(e) =>
-                              handleInputChange("driverName", e.target.value)
-                            }
-                            placeholder="Driver name"
-                            className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                              errors.driverName
-                                ? "border-red-400 bg-red-50"
-                                : "border-gray-300 bg-white"
-                            }`}
-                            autoComplete="name"
-                          />
+                          <div className="relative mt-2">
+                            <input
+                              ref={driverInputRef}
+                              id="driverName"
+                              name="driverName"
+                              type="text"
+                              value={driverSearch || formData.driverName}
+                              onChange={(e) => {
+                                setDriverSearch(e.target.value);
+                                handleInputChange("driverName", e.target.value);
+                                setDriverDropdownOpen(true);
+                              }}
+                              onFocus={() => setDriverDropdownOpen(true)}
+                              placeholder="Search or type driver name..."
+                              className={`w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                                errors.driverName
+                                  ? "border-red-400 bg-red-50"
+                                  : "border-gray-300 bg-white"
+                              }`}
+                              autoComplete="name"
+                            />
+                            {driverDropdownOpen && allDrivers.length > 0 && (
+                              <div
+                                ref={driverListRef2}
+                                className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto"
+                              >
+                                {allDrivers
+                                  .filter((driver) =>
+                                    driver.name
+                                      .toLowerCase()
+                                      .includes(
+                                        (
+                                          driverSearch || formData.driverName
+                                        ).toLowerCase()
+                                      )
+                                  )
+                                  .map((driver) => (
+                                    <button
+                                      type="button"
+                                      key={driver.id}
+                                      onClick={() => handleDriverSelect(driver)}
+                                      className="w-full px-4 py-3 text-left text-sm hover:bg-blue-50 transition-colors border-b last:border-b-0"
+                                    >
+                                      <div className="font-medium">
+                                        {driver.name}
+                                      </div>
+                                      <div className="text-xs text-gray-500">
+                                        {driver.phoneNo} • {driver.uid}
+                                      </div>
+                                    </button>
+                                  ))}
+                              </div>
+                            )}
+                          </div>
                           {errors.driverName && (
                             <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
                               <AlertCircle
@@ -2939,10 +3181,10 @@ const CustomerPortal = () => {
                               handleInputChange("driverAadhar", e.target.value)
                             }
                             placeholder="12-digit Aadhar number"
-                            disabled={driverExists && !driverChanged}
+                            readOnly={driverExists && !driverChanged}
                             className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
                               driverExists && !driverChanged
-                                ? "cursor-not-allowed bg-gray-100"
+                                ? "bg-gray-100"
                                 : ""
                             } ${
                               errors.driverAadhar
@@ -3213,21 +3455,12 @@ const CustomerPortal = () => {
 
                           <button
                             type="button"
-                            onClick={handleAddDriver}
+                            onClick={() => setShowDriverModal(true)}
                             disabled={loading || savingDriver}
                             className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-green-300"
                           >
-                            {loading ? (
-                              <>
-                                <Loader className="h-4 w-4 animate-spin" />
-                                Adding...
-                              </>
-                            ) : (
-                              <>
-                                <User className="h-4 w-4" />
-                                Add New Driver
-                              </>
-                            )}
+                            <User className="h-4 w-4" />
+                            Add New Driver
                           </button>
                         </div>
                         <p className="text-xs text-gray-500">
@@ -3286,22 +3519,60 @@ const CustomerPortal = () => {
                           >
                             Helper name<span className="text-red-500"> *</span>
                           </label>
-                          <input
-                            id="helperName"
-                            name="helperName"
-                            type="text"
-                            value={formData.helperName}
-                            onChange={(e) =>
-                              handleInputChange("helperName", e.target.value)
-                            }
-                            placeholder="Helper name"
-                            className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                              errors.helperName
-                                ? "border-red-400 bg-red-50"
-                                : "border-gray-300 bg-white"
-                            }`}
-                            autoComplete="name"
-                          />
+                          <div className="relative mt-2">
+                            <input
+                              ref={helperInputRef}
+                              id="helperName"
+                              name="helperName"
+                              type="text"
+                              value={helperSearch || formData.helperName}
+                              onChange={(e) => {
+                                setHelperSearch(e.target.value);
+                                handleInputChange("helperName", e.target.value);
+                                setHelperDropdownOpen(true);
+                              }}
+                              onFocus={() => setHelperDropdownOpen(true)}
+                              placeholder="Search or type helper name..."
+                              className={`w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                                errors.helperName
+                                  ? "border-red-400 bg-red-50"
+                                  : "border-gray-300 bg-white"
+                              }`}
+                              autoComplete="name"
+                            />
+                            {helperDropdownOpen && allHelpers.length > 0 && (
+                              <div
+                                ref={helperListRef2}
+                                className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto"
+                              >
+                                {allHelpers
+                                  .filter((helper) =>
+                                    helper.name
+                                      .toLowerCase()
+                                      .includes(
+                                        (
+                                          helperSearch || formData.helperName
+                                        ).toLowerCase()
+                                      )
+                                  )
+                                  .map((helper) => (
+                                    <button
+                                      type="button"
+                                      key={helper.id}
+                                      onClick={() => handleHelperSelect(helper)}
+                                      className="w-full px-4 py-3 text-left text-sm hover:bg-blue-50 transition-colors border-b last:border-b-0"
+                                    >
+                                      <div className="font-medium">
+                                        {helper.name}
+                                      </div>
+                                      <div className="text-xs text-gray-500">
+                                        {helper.phoneNo} • {helper.uid}
+                                      </div>
+                                    </button>
+                                  ))}
+                              </div>
+                            )}
+                          </div>
                           {errors.helperName && (
                             <div className="mt-2 flex items-center gap-2 text-sm text-red-600">
                               <AlertCircle
@@ -3331,10 +3602,10 @@ const CustomerPortal = () => {
                               handleInputChange("helperAadhar", e.target.value)
                             }
                             placeholder="12-digit Aadhar number"
-                            disabled={helperExists && !helperChanged}
+                            readOnly={helperExists && !helperChanged}
                             className={`mt-2 w-full rounded-xl border px-4 py-3 text-sm font-medium text-gray-900 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
                               helperExists && !helperChanged
-                                ? "cursor-not-allowed bg-gray-100"
+                                ? "bg-gray-100"
                                 : ""
                             } ${
                               errors.helperAadhar
@@ -3610,21 +3881,12 @@ const CustomerPortal = () => {
 
                           <button
                             type="button"
-                            onClick={handleAddHelper}
+                            onClick={() => setShowHelperModal(true)}
                             disabled={loading || savingHelper}
                             className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-green-300"
                           >
-                            {loading ? (
-                              <>
-                                <Loader className="h-4 w-4 animate-spin" />
-                                Adding...
-                              </>
-                            ) : (
-                              <>
-                                <User className="h-4 w-4" />
-                                Add New Helper
-                              </>
-                            )}
+                            <User className="h-4 w-4" />
+                            Add New Helper
                           </button>
                         </div>
                         <p className="text-xs text-gray-500">
@@ -4119,6 +4381,24 @@ const CustomerPortal = () => {
           </div>
         </div>
       </div>
+
+      {/* Driver Modal */}
+      <DriverHelperModal
+        isOpen={showDriverModal}
+        onClose={() => setShowDriverModal(false)}
+        type="Driver"
+        onSave={handleDriverModalSave}
+        loading={loading}
+      />
+
+      {/* Helper Modal */}
+      <DriverHelperModal
+        isOpen={showHelperModal}
+        onClose={() => setShowHelperModal(false)}
+        type="Helper"
+        onSave={handleHelperModalSave}
+        loading={loading}
+      />
     </div>
   );
 };

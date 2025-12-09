@@ -139,7 +139,7 @@ class DriverHelperViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["get"], url_path="by-vehicle")
     def get_by_vehicle(self, request):
         """
-        Get most recent driver and helper for a vehicle
+        Get ALL drivers and helpers for a vehicle (not just most recent)
 
         GET /api/drivers/by-vehicle/?vehicle_id={vehicle_id}
         """
@@ -153,33 +153,38 @@ class DriverHelperViewSet(viewsets.ModelViewSet):
         try:
             from podrivervehicletagging.models import DriverVehicleTagging
 
-            # Get most recent tagging for this vehicle
-            latest_tagging = (
+            # Get ALL unique drivers and helpers for this vehicle
+            taggings = (
                 DriverVehicleTagging.objects.filter(vehicleId_id=vehicle_id)
                 .select_related("driverId", "helperId")
                 .order_by("-created")
-                .first()
             )
 
-            if not latest_tagging:
-                return Response(
-                    {
-                        "driver": None,
-                        "helper": None,
-                        "message": "No previous driver/helper found for this vehicle",
-                    }
-                )
+            # Extract unique drivers and helpers
+            drivers_dict = {}
+            helpers_dict = {}
 
-            driver_data = None
-            helper_data = None
+            for tagging in taggings:
+                if tagging.driverId and tagging.driverId.id not in drivers_dict:
+                    drivers_dict[tagging.driverId.id] = tagging.driverId
+                
+                if tagging.helperId and tagging.helperId.id not in helpers_dict:
+                    helpers_dict[tagging.helperId.id] = tagging.helperId
 
-            if latest_tagging.driverId:
-                driver_data = DriverHelperSerializer(latest_tagging.driverId).data
+            # Convert to lists and serialize
+            drivers_data = [
+                DriverHelperSerializer(driver).data 
+                for driver in drivers_dict.values()
+            ]
+            helpers_data = [
+                DriverHelperSerializer(helper).data 
+                for helper in helpers_dict.values()
+            ]
 
-            if latest_tagging.helperId:
-                helper_data = DriverHelperSerializer(latest_tagging.helperId).data
-
-            return Response({"driver": driver_data, "helper": helper_data})
+            return Response({
+                "drivers": drivers_data,
+                "helpers": helpers_data
+            })
 
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
