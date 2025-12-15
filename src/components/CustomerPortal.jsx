@@ -163,7 +163,7 @@ const validateEmail = (value) => {
 };
 
 const validatePoNumber = (value) => {
-  if (!value.trim()) {
+  if (!value || typeof value !== "string" || !value.trim()) {
     return "PO number is required.";
   }
   if (value.trim().length < 2 || value.trim().length > 50) {
@@ -623,7 +623,7 @@ const CustomerPortal = () => {
 
   // Handle PO number blur
   const handlePONumberBlur = async () => {
-    const poNumber = formData.poNumber.trim();
+    const poNumber = formData.poNumber && typeof formData.poNumber === "string" ? formData.poNumber.trim() : "";
     if (!poNumber || poNumber.length < 2) return;
 
     try {
@@ -678,40 +678,129 @@ const CustomerPortal = () => {
 
   // Fetch complete data for selected vehicle
   const fetchVehicleData = async (vehicleRegNo) => {
-    try {
-      setLoadingVehicleData(true);
-      const response = await vehiclesAPI.getVehicleCompleteData(vehicleRegNo);
-      const data = response.data || {};
+  try {
+    setLoadingVehicleData(true);
+    const response = await vehiclesAPI.getVehicleCompleteData(vehicleRegNo);
+    const data = response.data || {};
 
-      // Save raw vehicleData for UI (used elsewhere)
-      setVehicleData(data);
+    console.log("Vehicle Complete Data Response:", data);
+    console.log("Drivers from API:", data.drivers);
 
-      // Auto-fill form data with fetched data (robust to response shapes)
-      autofillFormData(data);
+    // Save raw vehicleData for UI
+    setVehicleData(data);
 
-      // Also store autoFillData for documents / notifications
-      const auto = {
-        // tolerate either snake_case and camelCase, use fallback empty arrays/objects
-        driver:
-          data.driver ||
-          (Array.isArray(data.drivers) && data.drivers[0]) ||
-          null,
-        helper:
-          data.helper ||
-          (Array.isArray(data.helpers) && data.helpers[0]) ||
-          null,
-        po_number: data.po_number || data.poNumber || "",
-        documents: data.documents || data.document_list || [],
-      };
-      setAutoFillData(auto);
-    } catch (error) {
-      console.error("Failed to fetch vehicle data:", error);
-      setVehicleData(null);
-      setAutoFillData(null);
-    } finally {
-      setLoadingVehicleData(false);
+    // Store ALL drivers and helpers for dropdowns
+    const allDriversList = data.drivers || [];
+    const allHelpersList = data.helpers || [];
+    
+    console.log("Setting allDrivers with count:", allDriversList.length);
+    console.log("Driver names:", allDriversList.map(d => d.name));
+    
+    setAllDrivers(allDriversList);
+    setAllHelpers(allHelpersList);
+
+    // Auto-fill with most recent driver/helper (first in list)
+    const updates = {
+      vehicleNumber: vehicleRegNo,
+    };
+
+    if (allDriversList.length > 0) {
+      const driver = allDriversList[0];
+      updates.driverName = driver.name || "";
+      updates.driverPhone = driver.phoneNo || "";
+      updates.driverLanguage = driver.language || "en";
+      updates.driverAadhar = driver.uid || "";
+      setSavedDriverData(driver);
+      setDriverExists(!!driver.uid);
     }
-  };
+
+    if (allHelpersList.length > 0) {
+      const helper = allHelpersList[0];
+      updates.helperName = helper.name || "";
+      updates.helperPhone = helper.phoneNo || "";
+      updates.helperLanguage = helper.language || "en";
+      updates.helperAadhar = helper.uid || "";
+      setSavedHelperData(helper);
+      setHelperExists(!!helper.uid);
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      ...updates,
+    }));
+
+    // Handle PO number
+    const poNumber = data.po_number || data.poNumber || "";
+    if (poNumber) {
+      setFormData((prev) => ({
+        ...prev,
+        poNumber: poNumber,
+      }));
+    }
+
+    // Handle documents
+    const documents = data.documents || data.document_list || [];
+    if (documents.length > 0) {
+      const docTypeMapping = {
+        vehicle_registration: "vehicleRegistration",
+        vehicle_insurance: "vehicleInsurance",
+        vehicle_puc: "vehiclePuc",
+        driver_aadhar: "driverAadhar",
+        helper_aadhar: "helperAadhar",
+        po: "po",
+        do: "do",
+        before_weighing: "beforeWeighing",
+        after_weighing: "afterWeighing",
+      };
+
+      const newFiles = { ...initialFiles };
+
+      documents.forEach((doc) => {
+        const frontendType = docTypeMapping[doc.type];
+        if (frontendType) {
+          const fileObj = {
+            name: doc.name || `${doc.type_display}.pdf`,
+            documentId: doc.id,
+            filePath: doc.filePath,
+            type: "application/pdf",
+            size: 0,
+            uploaded: true,
+            fromDatabase: true,
+          };
+
+          if (!newFiles[frontendType]) {
+            newFiles[frontendType] = [];
+          }
+          newFiles[frontendType] = [...newFiles[frontendType], fileObj];
+        }
+      });
+
+      setFiles(newFiles);
+    }
+
+    // Store autoFillData for notifications
+    const auto = {
+      drivers: allDriversList,
+      helpers: allHelpersList,
+      po_number: poNumber,
+      documents: documents,
+    };
+    setAutoFillData(auto);
+
+    if (allDriversList.length > 0 || allHelpersList.length > 0) {
+      showPopupMessage(
+        `Vehicle data loaded with ${allDriversList.length} driver(s) and ${allHelpersList.length} helper(s)`,
+        "info"
+      );
+    }
+  } catch (error) {
+    console.error("Failed to fetch vehicle data:", error);
+    setVehicleData(null);
+    setAutoFillData(null);
+  } finally {
+    setLoadingVehicleData(false);
+  }
+};
 
   // Auto-fill form fields from fetched vehicle data
   const autofillFormData = (data) => {
@@ -1673,34 +1762,116 @@ const handleHelperModalSave = async (helperData) => {
 };
 
   // Handle driver selection from dropdown
-  const handleDriverSelect = (driver) => {
-    setFormData((prev) => ({
-      ...prev,
-      driverName: driver.name,
-      driverPhone: driver.phoneNo,
-      driverLanguage: driver.language,
-      driverAadhar: driver.uid,
-    }));
-    setDriverSearch(driver.name);
-    setDriverDropdownOpen(false);
-    setSavedDriverData(driver);
-    setDriverExists(true);
-  };
+  const handleDriverSelect = async (driver) => {
+  setFormData((prev) => ({
+    ...prev,
+    driverName: driver.name,
+    driverPhone: driver.phoneNo,
+    driverLanguage: driver.language,
+    driverAadhar: driver.uid,
+  }));
+  setDriverSearch(driver.name);
+  setDriverDropdownOpen(false);
+  setSavedDriverData(driver);
+  setDriverExists(true);
+
+  // Auto-fill driver's documents
+  if (formData.vehicleNumber) {
+    try {
+      const response = await vehiclesAPI.getVehicleCompleteData(
+        formData.vehicleNumber
+      );
+      const { documents } = response.data;
+
+      if (documents && documents.length > 0) {
+        const driverDocs = documents.filter(
+          (doc) => doc.referenceId === driver.id && doc.type === "driver_aadhar"
+        );
+
+        if (driverDocs.length > 0) {
+          setFiles((prev) => {
+            const newFiles = { ...prev };
+            const driverAadharFiles = driverDocs.map((doc) => ({
+              name: doc.name || `${doc.type_display}.pdf`,
+              documentId: doc.id,
+              filePath: doc.filePath,
+              type: "application/pdf",
+              size: 0,
+              uploaded: true,
+              fromDatabase: true,
+            }));
+
+            newFiles.driverAadhar = driverAadharFiles;
+            return newFiles;
+          });
+
+          showPopupMessage(
+            `Driver's Aadhar document auto-filled`,
+            "info"
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch driver documents:", error);
+    }
+  }
+};
 
   // Handle helper selection from dropdown
-  const handleHelperSelect = (helper) => {
-    setFormData((prev) => ({
-      ...prev,
-      helperName: helper.name,
-      helperPhone: helper.phoneNo,
-      helperLanguage: helper.language,
-      helperAadhar: helper.uid,
-    }));
-    setHelperSearch(helper.name);
-    setHelperDropdownOpen(false);
-    setSavedHelperData(helper);
-    setHelperExists(true);
-  };
+  const handleHelperSelect = async (helper) => {
+  setFormData((prev) => ({
+    ...prev,
+    helperName: helper.name,
+    helperPhone: helper.phoneNo,
+    helperLanguage: helper.language,
+    helperAadhar: helper.uid,
+  }));
+  setHelperSearch(helper.name);
+  setHelperDropdownOpen(false);
+  setSavedHelperData(helper);
+  setHelperExists(true);
+
+  // Auto-fill helper's documents
+  if (formData.vehicleNumber) {
+    try {
+      const response = await vehiclesAPI.getVehicleCompleteData(
+        formData.vehicleNumber
+      );
+      const { documents } = response.data;
+
+      if (documents && documents.length > 0) {
+        const helperDocs = documents.filter(
+          (doc) => doc.referenceId === helper.id && doc.type === "helper_aadhar"
+        );
+
+        if (helperDocs.length > 0) {
+          setFiles((prev) => {
+            const newFiles = { ...prev };
+            const helperAadharFiles = helperDocs.map((doc) => ({
+              name: doc.name || `${doc.type_display}.pdf`,
+              documentId: doc.id,
+              filePath: doc.filePath,
+              type: "application/pdf",
+              size: 0,
+              uploaded: true,
+              fromDatabase: true,
+            }));
+
+            newFiles.helperAadhar = helperAadharFiles;
+            return newFiles;
+          });
+
+          showPopupMessage(
+            `Helper's Aadhar document auto-filled`,
+            "info"
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch helper documents:", error);
+    }
+  }
+};
 
   const handleSaveDriver = async () => {
     // Validate driver fields
@@ -3187,15 +3358,14 @@ const handleHelperModalSave = async (helperData) => {
                                 ref={driverListRef2}
                                 className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto"
                               >
+                                {console.log("Rendering driver dropdown with drivers:", allDrivers)}
                                 {allDrivers
                                   .filter((driver) =>
-                                    driver.name
-                                      .toLowerCase()
-                                      .includes(
-                                        (
-                                          driverSearch || formData.driverName
-                                        ).toLowerCase()
-                                      )
+                                    driverSearch 
+                                      ? driver.name
+                                          .toLowerCase()
+                                          .includes(driverSearch.toLowerCase())
+                                      : true
                                   )
                                   .map((driver) => (
                                     <button
@@ -3968,46 +4138,7 @@ const handleHelperModalSave = async (helperData) => {
               {currentStep === 2 && (
                 <>
                   {/* Show documents from database */}
-                  {autoFillData &&
-                    autoFillData.documents &&
-                    autoFillData.documents.length > 0 && (
-                      <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-4">
-                        <div className="flex items-start gap-3">
-                          <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-green-600" />
-                          <div className="flex-1">
-                            <p className="font-semibold text-sm text-green-800">
-                              Previously uploaded documents:
-                            </p>
-                            <div className="mt-2 space-y-2">
-                              {autoFillData.documents.map((doc, idx) => (
-                                <div
-                                  key={idx}
-                                  className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <FileText className="h-4 w-4 text-blue-600" />
-                                    <span className="font-medium text-gray-900">
-                                      {doc.type_display || doc.type}
-                                    </span>
-                                    <span className="text-xs text-gray-500">
-                                      ({doc.name})
-                                    </span>
-                                  </div>
-                                  <span className="text-xs text-green-600">
-                                    ✓ Uploaded
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                            <p className="mt-2 text-xs text-green-700">
-                              These documents are already in the system. Upload
-                              new documents below to add more or replace
-                              existing ones.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                  {/* Previously uploaded documents section removed */}
                   <section className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
                     <div className="flex items-center gap-3">
                       <FileText

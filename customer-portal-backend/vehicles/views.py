@@ -2,13 +2,11 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from django.db.models import Prefetch
 from .models import VehicleDetails
 from .serializers import VehicleDetailsSerializer
-from drivers.models import DriverHelper
-from drivers.serializers import DriverHelperSerializer
 from documents.models import DocumentControl
 from documents.serializers import DocumentControlSerializer
+
 
 class VehicleViewSet(viewsets.ModelViewSet):
     queryset = VehicleDetails.objects.all()
@@ -26,10 +24,13 @@ class VehicleViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='my-vehicles')
     def my_vehicles(self, request):
         """Get all vehicles associated with the authenticated customer"""
-        vehicles = VehicleDetails.objects.filter(
-            customer=request.user
-        ).distinct().order_by('-created')
-        
+        vehicles = (
+            VehicleDetails.objects
+            .filter(customer=request.user)
+            .distinct()
+            .order_by('-created')
+        )
+
         serializer = VehicleDetailsSerializer(vehicles, many=True)
         return Response({
             "vehicles": serializer.data,
@@ -40,128 +41,110 @@ class VehicleViewSet(viewsets.ModelViewSet):
     def create_or_get_vehicle(self, request):
         """
         Create vehicle if doesn't exist, or get existing vehicle with complete data
-        Returns driver, helper, PO number, and document information for auto-fill
         """
         vehicle_number = request.data.get('vehicle_number', '').strip().upper()
-        
+
         if not vehicle_number:
             return Response(
                 {"error": "Vehicle number is required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
-        # Get or create vehicle
+
         vehicle, created = VehicleDetails.objects.get_or_create(
             vehicleRegistrationNo=vehicle_number,
             defaults={'customer': request.user}
         )
-        
-        # If vehicle exists but has no customer, assign current user
+
         if not created and not vehicle.customer:
             vehicle.customer = request.user
             vehicle.save()
-        
-        # Get the most recent driver/helper for this vehicle from DriverVehicleTagging
+
         from podrivervehicletagging.models import DriverVehicleTagging, PODriverVehicleTagging
-        
+
         latest_tagging = (
-            DriverVehicleTagging.objects.filter(vehicleId=vehicle)
+            DriverVehicleTagging.objects
+            .filter(vehicleId=vehicle)
             .select_related('driverId', 'helperId')
             .order_by('-created')
             .first()
         )
-        
+
         driver_data = None
         helper_data = None
         po_number = None
-        documents_data = []
-        
-        if latest_tagging:
-            # Get driver info
-            if latest_tagging.driverId:
-                driver_data = {
-                    "id": latest_tagging.driverId.id,
-                    "name": latest_tagging.driverId.name,
-                    "phoneNo": latest_tagging.driverId.phoneNo,
-                    "language": latest_tagging.driverId.language,
-                    "type": latest_tagging.driverId.type,
-                    "uid": latest_tagging.driverId.uid,  # Add Aadhar
-                }
-            
-            # Get helper info
-            if latest_tagging.helperId:
-                helper_data = {
-                    "id": latest_tagging.helperId.id,
-                    "name": latest_tagging.helperId.name,
-                    "phoneNo": latest_tagging.helperId.phoneNo,
-                    "language": latest_tagging.helperId.language,
-                    "type": latest_tagging.helperId.type,
-                    "uid": latest_tagging.helperId.uid,  # Add Aadhar
-                }
-            
-            # Get PO number
-            try:
-                po_tagging = (
-                    PODriverVehicleTagging.objects.filter(
-                        driverVehicleTaggingId=latest_tagging
-                    )
-                    .select_related('poId')
-                    .order_by('-created')
-                    .first()
-                )
-                
-                if po_tagging and po_tagging.poId:
-                    po_number = po_tagging.poId.id
-            except Exception as e:
-                print(f"Could not fetch PO number: {e}")
-        
-        # Get all documents for this vehicle from DocumentControl
-        documents = list(DocumentControl.objects.filter(
-            referenceId=vehicle.id,
-            type__in=['vehicle_registration', 'vehicle_insurance', 'vehicle_puc']
-        ).order_by('-created'))
+        documents = []
 
-        # Get driver documents if driver exists
+        if latest_tagging:
+            if latest_tagging.driverId:
+                driver = latest_tagging.driverId
+                driver_data = {
+                    "id": driver.id,
+                    "name": driver.name,
+                    "phoneNo": driver.phoneNo,
+                    "language": driver.language,
+                    "type": driver.type,
+                    "uid": driver.uid,
+                }
+
+            if latest_tagging.helperId:
+                helper = latest_tagging.helperId
+                helper_data = {
+                    "id": helper.id,
+                    "name": helper.name,
+                    "phoneNo": helper.phoneNo,
+                    "language": helper.language,
+                    "type": helper.type,
+                    "uid": helper.uid,
+                }
+
+            po_tagging = (
+                PODriverVehicleTagging.objects
+                .filter(driverVehicleTaggingId=latest_tagging)
+                .select_related('poId')
+                .order_by('-created')
+                .first()
+            )
+
+            if po_tagging and po_tagging.poId:
+                po_number = po_tagging.poId.id
+
+        documents.extend(
+            DocumentControl.objects.filter(
+                referenceId=vehicle.id,
+                type__in=['vehicle_registration', 'vehicle_insurance', 'vehicle_puc']
+            ).order_by('-created')
+        )
+
         if driver_data:
-            try:
-                driver_docs = DocumentControl.objects.filter(
+            documents.extend(
+                DocumentControl.objects.filter(
                     referenceId=driver_data['id'],
                     type='driver_aadhar'
-                ).order_by('-created')
-                documents.extend(list(driver_docs))
-            except Exception as e:
-                print(f"Could not fetch driver documents: {e}")
+                )
+            )
 
-        # Get helper documents if helper exists
         if helper_data:
-            try:
-                helper_docs = DocumentControl.objects.filter(
+            documents.extend(
+                DocumentControl.objects.filter(
                     referenceId=helper_data['id'],
                     type='helper_aadhar'
-                ).order_by('-created')
-                documents.extend(list(helper_docs))
-            except Exception as e:
-                print(f"Could not fetch helper documents: {e}")
+                )
+            )
 
-        # Get PO documents if PO exists
         if po_number:
-            try:
-                po_docs = DocumentControl.objects.filter(
+            documents.extend(
+                DocumentControl.objects.filter(
                     referenceId=po_number,
                     type__in=['po', 'do', 'before_weighing', 'after_weighing']
-                ).order_by('-created')
-                documents.extend(list(po_docs))
-            except Exception as e:
-                print(f"Could not fetch PO documents: {e}")
+                )
+            )
 
-        documents_data = DocumentControlSerializer(documents, many=True).data
-        
         return Response({
             "vehicle": VehicleDetailsSerializer(vehicle).data,
             "driver": driver_data,
             "helper": helper_data,
             "po_number": po_number,
-            "documents": documents_data,
+            "documents": DocumentControlSerializer(documents, many=True).data,
             "created": created,
             "message": "New vehicle created" if created else "Existing vehicle found"
         }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
@@ -169,17 +152,16 @@ class VehicleViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='vehicle-complete-data')
     def vehicle_complete_data(self, request):
         """
-        Get complete data for a specific vehicle with all related information
-        Query params: vehicle_reg_no=MH14X5456
+        Get complete data for a specific vehicle
         """
         vehicle_reg_no = request.query_params.get('vehicle_reg_no')
-        
+
         if not vehicle_reg_no:
             return Response(
                 {"detail": "vehicle_reg_no query parameter is required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         try:
             vehicle = VehicleDetails.objects.get(
                 vehicleRegistrationNo=vehicle_reg_no
@@ -189,105 +171,89 @@ class VehicleViewSet(viewsets.ModelViewSet):
                 {"detail": "Vehicle not found"},
                 status=status.HTTP_404_NOT_FOUND
             )
-        
-        # Get the most recent driver/helper for this vehicle from DriverVehicleTagging
-        from podrivervehicletagging.models import DriverVehicleTagging
-        
-        latest_tagging = (
-            DriverVehicleTagging.objects.filter(vehicleId=vehicle)
+
+        from podrivervehicletagging.models import DriverVehicleTagging, PODriverVehicleTagging
+
+        taggings = (
+            DriverVehicleTagging.objects
+            .filter(vehicleId=vehicle)
             .select_related('driverId', 'helperId')
             .order_by('-created')
-            .first()
         )
         
-        driver_data = None
-        helper_data = None
+        drivers = {}
+        helpers = {}
+
+        for tagging in taggings:
+            if tagging.driverId:
+                drivers.setdefault(tagging.driverId.id, {
+                    "id": tagging.driverId.id,
+                    "name": tagging.driverId.name,
+                    "phoneNo": tagging.driverId.phoneNo,
+                    "language": tagging.driverId.language,
+                    "type": tagging.driverId.type,
+                    "uid": tagging.driverId.uid,
+                })
+
+            if tagging.helperId:
+                helpers.setdefault(tagging.helperId.id, {
+                    "id": tagging.helperId.id,
+                    "name": tagging.helperId.name,
+                    "phoneNo": tagging.helperId.phoneNo,
+                    "language": tagging.helperId.language,
+                    "type": tagging.helperId.type,
+                    "uid": tagging.helperId.uid,
+                })
+
+        latest_tagging = taggings.first()
         po_number = None
-        
+
         if latest_tagging:
-            # Get driver info
-            if latest_tagging.driverId:
-                driver_data = {
-                    "id": latest_tagging.driverId.id,
-                    "name": latest_tagging.driverId.name,
-                    "phoneNo": latest_tagging.driverId.phoneNo,
-                    "language": latest_tagging.driverId.language,
-                    "type": latest_tagging.driverId.type,
-                    "uid": latest_tagging.driverId.uid,  # Add Aadhar
-                }
-            
-            # Get helper info
-            if latest_tagging.helperId:
-                helper_data = {
-                    "id": latest_tagging.helperId.id,
-                    "name": latest_tagging.helperId.name,
-                    "phoneNo": latest_tagging.helperId.phoneNo,
-                    "language": latest_tagging.helperId.language,
-                    "type": latest_tagging.helperId.type,
-                    "uid": latest_tagging.helperId.uid,  # Add Aadhar
-                }
-            
-            # Get PO number from PODriverVehicleTagging
-            from podrivervehicletagging.models import PODriverVehicleTagging
-            
-            try:
-                po_tagging = (
-                    PODriverVehicleTagging.objects.filter(
-                        driverVehicleTaggingId=latest_tagging
-                    )
-                    .select_related('poId')
-                    .order_by('-created')
-                    .first()
-                )
-                
-                if po_tagging and po_tagging.poId:
-                    po_number = po_tagging.poId.id
-            except Exception as e:
-                print(f"Could not fetch PO number: {e}")
-        
-        # Get documents from DocumentControl
-        documents = list(DocumentControl.objects.filter(
-            referenceId=vehicle.id,
-            type__in=['vehicle_registration', 'vehicle_insurance', 'vehicle_puc']
-        ).order_by('-created'))
+            po_tagging = (
+                PODriverVehicleTagging.objects
+                .filter(driverVehicleTaggingId=latest_tagging)
+                .select_related('poId')
+                .order_by('-created')
+                .first()
+            )
+            if po_tagging and po_tagging.poId:
+                po_number = po_tagging.poId.id
 
-        # Get driver documents if driver exists
-        if driver_data:
-            try:
-                driver_docs = DocumentControl.objects.filter(
-                    referenceId=driver_data['id'],
+        documents = list(
+            DocumentControl.objects.filter(
+                referenceId=vehicle.id,
+                type__in=['vehicle_registration', 'vehicle_insurance', 'vehicle_puc']
+            )
+        )
+
+        for driver in drivers.values():
+            documents.extend(
+                DocumentControl.objects.filter(
+                    referenceId=driver['id'],
                     type='driver_aadhar'
-                ).order_by('-created')
-                documents.extend(list(driver_docs))
-            except Exception as e:
-                print(f"Could not fetch driver documents: {e}")
+                )
+            )
 
-        # Get helper documents if helper exists
-        if helper_data:
-            try:
-                helper_docs = DocumentControl.objects.filter(
-                    referenceId=helper_data['id'],
+        for helper in helpers.values():
+            documents.extend(
+                DocumentControl.objects.filter(
+                    referenceId=helper['id'],
                     type='helper_aadhar'
-                ).order_by('-created')
-                documents.extend(list(helper_docs))
-            except Exception as e:
-                print(f"Could not fetch helper documents: {e}")
+                )
+            )
 
-        # Get PO documents if PO exists
         if po_number:
-            try:
-                po_docs = DocumentControl.objects.filter(
+            documents.extend(
+                DocumentControl.objects.filter(
                     referenceId=po_number,
                     type__in=['po', 'do', 'before_weighing', 'after_weighing']
-                ).order_by('-created')
-                documents.extend(list(po_docs))
-            except Exception as e:
-                print(f"Could not fetch PO documents: {e}")
-        
+                )
+            )
+
         return Response({
             "vehicle": VehicleDetailsSerializer(vehicle).data,
-            "driver": driver_data,
-            "helper": helper_data,
+            "drivers": list(drivers.values()),
+            "helpers": list(helpers.values()),
             "po_number": po_number,
             "documents": DocumentControlSerializer(documents, many=True).data
         })
@@ -297,7 +263,7 @@ class VehicleViewSet(viewsets.ModelViewSet):
         vehicle = self.get_object()
         vehicle_reg_no = vehicle.vehicleRegistrationNo
         vehicle.delete()
-        
+
         return Response({
             "message": f"Vehicle {vehicle_reg_no} deleted successfully"
         }, status=status.HTTP_200_OK)
