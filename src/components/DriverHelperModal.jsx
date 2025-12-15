@@ -72,12 +72,16 @@ const DriverHelperModal = ({ isOpen, onClose, type, onSave, loading }) => {
   };
 
   const handleSubmit = () => {
-    if (validate()) {
-      onSave(formData);
-      setFormData({ name: "", phone: "", aadhar: "", language: "en" });
-      setErrors({});
-    }
-  };
+  if (validate()) {
+    // Trim the aadhar before sending
+    onSave({
+      ...formData,
+      aadhar: formData.aadhar.trim()
+    });
+    setFormData({ name: "", phone: "", aadhar: "", language: "en" });
+    setErrors({});
+  }
+};
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">

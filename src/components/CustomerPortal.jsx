@@ -1558,87 +1558,119 @@ const CustomerPortal = () => {
 
   // Handle driver modal save
   const handleDriverModalSave = async (driverData) => {
-    try {
-      setLoading(true);
-      const payload = {
-        name: driverData.name.trim(),
-        phoneNo: driverData.phone,
-        type: "Driver",
-        language: driverData.language,
-        uid: driverData.aadhar.trim(),
-      };
+  try {
+    setLoading(true);
+    const payload = {
+      name: driverData.name.trim(),
+      phoneNo: driverData.phone,
+      type: "Driver",
+      language: driverData.language,
+      uid: driverData.aadhar.trim(), // Ensure trim here
+    };
 
-      const response = await driversAPI.validateOrCreate(payload);
-      const newDriver = response.data.driver;
+    const response = await driversAPI.validateOrCreate(payload);
+    const newDriver = response.data.driver;
 
-      // Update form with new driver data
-      setFormData((prev) => ({
-        ...prev,
-        driverName: newDriver.name,
-        driverPhone: newDriver.phoneNo,
-        driverLanguage: newDriver.language,
-        driverAadhar: newDriver.uid,
-      }));
+    // Update form with new driver data
+    setFormData((prev) => ({
+      ...prev,
+      driverName: newDriver.name,
+      driverPhone: newDriver.phoneNo,
+      driverLanguage: newDriver.language,
+      driverAadhar: newDriver.uid,
+    }));
 
-      // Add to drivers list
-      setAllDrivers((prev) => [newDriver, ...prev]);
-      setSavedDriverData(newDriver);
-      setDriverExists(true);
+    // Add to drivers list
+    setAllDrivers((prev) => [newDriver, ...prev]);
+    setSavedDriverData(newDriver);
+    setDriverExists(true);
 
-      setShowDriverModal(false);
-      showPopupMessage("New driver added successfully", "info");
-    } catch (error) {
-      console.error("Failed to add driver:", error);
-      showPopupMessage(
-        error.response?.data?.error || "Failed to add driver",
-        "warning"
-      );
-    } finally {
-      setLoading(false);
+    setShowDriverModal(false);
+    showPopupMessage("New driver added successfully", "info");
+  } catch (error) {
+    console.error("Failed to add driver:", error);
+    
+    // Enhanced error handling
+    let errorMessage = "Failed to add driver";
+    
+    if (error.response?.data) {
+      const data = error.response.data;
+      
+      // Check for specific field errors
+      if (data.uid) {
+        errorMessage = Array.isArray(data.uid) ? data.uid[0] : data.uid;
+      } else if (data.error) {
+        errorMessage = data.error;
+      } else if (data.phoneNo) {
+        errorMessage = Array.isArray(data.phoneNo) ? data.phoneNo[0] : data.phoneNo;
+      } else if (data.name) {
+        errorMessage = Array.isArray(data.name) ? data.name[0] : data.name;
+      }
     }
-  };
+    
+    showPopupMessage(errorMessage, "warning");
+  } finally {
+    setLoading(false);
+  }
+};
 
-  // Handle helper modal save
-  const handleHelperModalSave = async (helperData) => {
-    try {
-      setLoading(true);
-      const payload = {
-        name: helperData.name.trim(),
-        phoneNo: helperData.phone,
-        type: "Helper",
-        language: helperData.language,
-        uid: helperData.aadhar.trim(),
-      };
+// Handle helper modal save
+const handleHelperModalSave = async (helperData) => {
+  try {
+    setLoading(true);
+    const payload = {
+      name: helperData.name.trim(),
+      phoneNo: helperData.phone,
+      type: "Helper",
+      language: helperData.language,
+      uid: helperData.aadhar.trim(), // Ensure trim here
+    };
 
-      const response = await driversAPI.validateOrCreate(payload);
-      const newHelper = response.data.driver;
+    const response = await driversAPI.validateOrCreate(payload);
+    const newHelper = response.data.driver;
 
-      // Update form with new helper data
-      setFormData((prev) => ({
-        ...prev,
-        helperName: newHelper.name,
-        helperPhone: newHelper.phoneNo,
-        helperLanguage: newHelper.language,
-        helperAadhar: newHelper.uid,
-      }));
+    // Update form with new helper data
+    setFormData((prev) => ({
+      ...prev,
+      helperName: newHelper.name,
+      helperPhone: newHelper.phoneNo,
+      helperLanguage: newHelper.language,
+      helperAadhar: newHelper.uid,
+    }));
 
-      // Add to helpers list
-      setAllHelpers((prev) => [newHelper, ...prev]);
-      setSavedHelperData(newHelper);
-      setHelperExists(true);
+    // Add to helpers list
+    setAllHelpers((prev) => [newHelper, ...prev]);
+    setSavedHelperData(newHelper);
+    setHelperExists(true);
 
-      setShowHelperModal(false);
-      showPopupMessage("New helper added successfully", "info");
-    } catch (error) {
-      console.error("Failed to add helper:", error);
-      showPopupMessage(
-        error.response?.data?.error || "Failed to add helper",
-        "warning"
-      );
-    } finally {
-      setLoading(false);
+    setShowHelperModal(false);
+    showPopupMessage("New helper added successfully", "info");
+  } catch (error) {
+    console.error("Failed to add helper:", error);
+    
+    // Enhanced error handling
+    let errorMessage = "Failed to add helper";
+    
+    if (error.response?.data) {
+      const data = error.response.data;
+      
+      // Check for specific field errors
+      if (data.uid) {
+        errorMessage = Array.isArray(data.uid) ? data.uid[0] : data.uid;
+      } else if (data.error) {
+        errorMessage = data.error;
+      } else if (data.phoneNo) {
+        errorMessage = Array.isArray(data.phoneNo) ? data.phoneNo[0] : data.phoneNo;
+      } else if (data.name) {
+        errorMessage = Array.isArray(data.name) ? data.name[0] : data.name;
+      }
     }
-  };
+    
+    showPopupMessage(errorMessage, "warning");
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Handle driver selection from dropdown
   const handleDriverSelect = (driver) => {
@@ -1799,109 +1831,125 @@ const CustomerPortal = () => {
   };
 
   const handleNextStep = async () => {
-    const currentStepFields = stepFieldMap[currentStep];
-    if (!validateFields(currentStepFields)) {
+  const currentStepFields = stepFieldMap[currentStep];
+  if (!validateFields(currentStepFields)) {
+    showPopupMessage(
+      "Please fill in all required fields before proceeding.",
+      "warning"
+    );
+    return;
+  }
+
+  // If on step 0, save vehicle and PO before proceeding
+  if (currentStep === 0) {
+    try {
+      setLoading(true);
+      
+      // Track what was created
+      let vehicleCreated = false;
+      let poCreated = false;
+      const createdItems = [];
+
+      // Create/get vehicle first
+      if (formData.vehicleNumber.trim()) {
+        const vehicleResponse = await vehiclesAPI.createOrGetVehicle(
+          formData.vehicleNumber
+        );
+        vehicleCreated = vehicleResponse.data.created;
+        
+        if (vehicleCreated) {
+          createdItems.push("Vehicle");
+        }
+        
+        const { driver, helper, po_number } = vehicleResponse.data;
+
+        // Auto-fill driver and helper for Step 1
+        const updates = {};
+        let hasDriver = false;
+        let hasHelper = false;
+
+        if (driver) {
+          updates.driverName = driver.name || "";
+          updates.driverPhone = driver.phoneNo || "";
+          updates.driverLanguage = driver.language || "en";
+          hasDriver = true;
+        }
+
+        if (helper) {
+          updates.helperName = helper.name || "";
+          updates.helperPhone = helper.phoneNo || "";
+          updates.helperLanguage = helper.language || "en";
+          hasHelper = true;
+        }
+
+        if (Object.keys(updates).length > 0) {
+          setFormData((prev) => ({ ...prev, ...updates }));
+
+          // Show combined message only if not shown before
+          if (!hasShownDriverHelperPopup) {
+            if (hasDriver && hasHelper) {
+              showPopupMessage("Driver and Helper info auto-filled", "info");
+            } else if (hasDriver) {
+              showPopupMessage("Driver info auto-filled", "info");
+            } else if (hasHelper) {
+              showPopupMessage("Helper info auto-filled", "info");
+            }
+            setHasShownDriverHelperPopup(true);
+          }
+        }
+
+        setVehicleSaved(true);
+      }
+
+      // Create/get PO after vehicle is saved
+      if (formData.poNumber.trim()) {
+        try {
+          const poResponse = await poDetailsAPI.createOrGetPO(
+            formData.poNumber
+          );
+          poCreated = poResponse.data.created;
+          
+          if (poCreated) {
+            createdItems.push("PO");
+          }
+          
+          const poData = poResponse.data.po;
+
+          // Extract dapName
+          if (poData && poData.dapName) {
+            if (typeof poData.dapName === "object" && poData.dapName.name) {
+              setDapName(poData.dapName.name);
+            } else if (typeof poData.dapName === "string") {
+              setDapName(poData.dapName);
+            }
+          } else {
+            setDapName("");
+          }
+        } catch (poError) {
+          console.error("Failed to create/get PO:", poError);
+          showPopupMessage(
+            "Failed to save PO details, but you can continue",
+            "warning"
+          );
+        }
+      }
+      
+      // Show success message based on what was created
+      if (createdItems.length > 0) {
+        const message = `${createdItems.join(" and ")} numbers created successfully`;
+        showPopupMessage(message, "info");
+      }
+      
+    } catch (error) {
+      console.error("Failed to save vehicle:", error);
       showPopupMessage(
-        "Please fill in all required fields before proceeding.",
+        "Failed to save vehicle details, but you can continue",
         "warning"
       );
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    // If on step 0, save vehicle and PO before proceeding
-    if (currentStep === 0) {
-      try {
-        setLoading(true);
-
-        // Create/get vehicle first
-        if (formData.vehicleNumber.trim()) {
-          const vehicleResponse = await vehiclesAPI.createOrGetVehicle(
-            formData.vehicleNumber
-          );
-          const { driver, helper, po_number } = vehicleResponse.data;
-
-          // Auto-fill driver and helper for Step 1
-          const updates = {};
-          let hasDriver = false;
-          let hasHelper = false;
-
-          if (driver) {
-            updates.driverName = driver.name || "";
-            updates.driverPhone = driver.phoneNo || "";
-            updates.driverLanguage = driver.language || "en";
-            hasDriver = true;
-          }
-
-          if (helper) {
-            updates.helperName = helper.name || "";
-            updates.helperPhone = helper.phoneNo || "";
-            updates.helperLanguage = helper.language || "en";
-            hasHelper = true;
-          }
-
-          if (Object.keys(updates).length > 0) {
-            setFormData((prev) => ({ ...prev, ...updates }));
-
-            // Show combined message only if not shown before
-            if (!hasShownDriverHelperPopup) {
-              if (hasDriver && hasHelper) {
-                showPopupMessage("Driver and Helper info auto-filled", "info");
-              } else if (hasDriver) {
-                showPopupMessage("Driver info auto-filled", "info");
-              } else if (hasHelper) {
-                showPopupMessage("Helper info auto-filled", "info");
-              }
-              setHasShownDriverHelperPopup(true);
-            }
-          }
-
-          setVehicleSaved(true);
-        }
-
-        // Create/get PO after vehicle is saved
-        if (formData.poNumber.trim()) {
-          try {
-            const poResponse = await poDetailsAPI.createOrGetPO(
-              formData.poNumber
-            );
-            const poData = poResponse.data.po;
-
-            // Extract dapName
-            if (poData && poData.dapName) {
-              if (typeof poData.dapName === "object" && poData.dapName.name) {
-                setDapName(poData.dapName.name);
-              } else if (typeof poData.dapName === "string") {
-                setDapName(poData.dapName);
-              }
-            } else {
-              setDapName("");
-            }
-
-            // Show success message if PO was created
-            if (poResponse.data.created) {
-              showPopupMessage(
-                `PO ${formData.poNumber} created successfully`,
-                "info"
-              );
-            }
-          } catch (poError) {
-            console.error("Failed to create/get PO:", poError);
-            showPopupMessage(
-              "Failed to save PO details, but you can continue",
-              "warning"
-            );
-          }
-        }
-      } catch (error) {
-        console.error("Failed to save vehicle:", error);
-        showPopupMessage(
-          "Failed to save vehicle details, but you can continue",
-          "warning"
-        );
-      } finally {
-        setLoading(false);
-      }
-    }
+  }
 
     // If on step 1, save driver and helper info ONLY if data has changed
     if (currentStep === 1) {
@@ -2109,37 +2157,52 @@ const CustomerPortal = () => {
     return validateFields(allFields);
   }, [stepFieldMap, validateFields]);
 
-  const resetForm = () => {
-    // Preserve customer email and phone from logged-in user
-    const customerEmail = user?.email || "";
-    const customerPhone = user?.phone || user?.telephone || "";
+  const resetForm = async () => {
+  // Preserve customer email and phone from logged-in user
+  const customerEmail = user?.email || "";
+  const customerPhone = user?.phone || user?.telephone || "";
 
-    setFormData({
-      ...initialFormData,
-      customerEmail, // Keep customer email
-      customerPhone, // Keep customer phone
-    });
-    setFiles(initialFiles);
-    setErrors({});
-    setSubmitError("");
-    setCurrentStep(0);
-    setSuccessData(null);
-    setMockNotice("");
-    setShowNotify(false);
-    setVehicleSaved(false);
-    setSavedDriverHelperData(null);
-    setDriverExists(false);
-    setHelperExists(false);
-    setDapName("");
-    setPoSearch("");
-    setVehicleSearch("");
-    setHasShownDriverHelperPopup(false);
+  setFormData({
+    ...initialFormData,
+    customerEmail, // Keep customer email
+    customerPhone, // Keep customer phone
+  });
+  setFiles(initialFiles);
+  setErrors({});
+  setSubmitError("");
+  setCurrentStep(0);
+  setSuccessData(null);
+  setMockNotice("");
+  setShowNotify(false);
+  setVehicleSaved(false);
+  setSavedDriverHelperData(null);
+  setDriverExists(false);
+  setHelperExists(false);
+  setDapName("");
+  setPoSearch("");
+  setVehicleSearch("");
+  setHasShownDriverHelperPopup(false);
 
-    // Clear localStorage
-    localStorage.removeItem("customerPortal_formData");
-    localStorage.removeItem("customerPortal_files");
-    localStorage.removeItem("customerPortal_currentStep");
-  };
+  // Clear localStorage
+  localStorage.removeItem("customerPortal_formData");
+  localStorage.removeItem("customerPortal_files");
+  localStorage.removeItem("customerPortal_currentStep");
+
+  // Refetch vehicles and PO numbers
+  try {
+    // Fetch vehicles
+    const vehiclesResponse = await vehiclesAPI.getMyVehicles();
+    setMyVehicles(vehiclesResponse.data.vehicles || []);
+    setVehicles(vehiclesResponse.data.vehicles || []);
+
+    // Fetch PO numbers
+    const poResponse = await poDetailsAPI.getMyPOs();
+    setPoNumbers(poResponse.data.pos || []);
+  } catch (error) {
+    console.error("Failed to refresh data:", error);
+    // Don't show error to user, they can still continue
+  }
+};
 
   // Auto-dismiss notification when shown
   useEffect(() => {
