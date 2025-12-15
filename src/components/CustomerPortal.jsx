@@ -2602,42 +2602,42 @@ const handleHelperModalSave = async (helperData) => {
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 px-4 py-10">
         {/* Toast notification */}
         {showNotify && (
-          <div className="fixed right-6 top-6 z-50 w-full max-w-sm rounded-xl bg-white shadow-xl">
-            <div className="flex items-start gap-3 p-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50">
-                <CheckCircle
-                  className="h-5 w-5 text-green-600"
-                  aria-hidden="true"
-                />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-gray-900">
-                  QR code link emailed
-                </p>
-                <p className="mt-1 text-sm text-gray-600">
-                  QR code link emailed on{" "}
-                  <span className="font-medium text-gray-900">
-                    {formData.customerEmail || "—"}
-                  </span>
-                </p>
-                <p className="mt-1 text-sm text-gray-600">
-                  and your mobile number:{" "}
-                  <span className="font-medium text-gray-900">
-                    {formData.customerPhone || "—"}
-                  </span>
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowNotify(false)}
-                className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                aria-label="Dismiss notification"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        )}
+  <div className="fixed right-6 top-6 z-50 w-full max-w-sm rounded-xl bg-white shadow-xl">
+    <div className="flex items-start gap-3 p-4">
+      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50">
+        <CheckCircle className="h-5 w-5 text-green-600" aria-hidden="true" />
+      </div>
+      <div className="flex-1">
+        <p className="text-sm font-semibold text-gray-900">
+          QR Code Sent Successfully!
+        </p>
+        <p className="mt-1 text-sm text-gray-600">
+          QR code has been emailed to{" "}
+          <span className="font-medium text-gray-900">
+            {formData.customerEmail || "—"}
+          </span>
+        </p>
+        <p className="mt-1 text-sm text-gray-600">
+          and SMS sent to{" "}
+          <span className="font-medium text-gray-900">
+            {formData.customerPhone || "—"}
+          </span>
+        </p>
+        <p className="mt-2 text-xs text-blue-600">
+          ℹ️ Check your email inbox (and spam folder)
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={() => setShowNotify(false)}
+        className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+        aria-label="Dismiss notification"
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  </div>
+)}
         {/* Generic popup (for warnings/info) */}
         {showPopup && (
           <div className="fixed right-6 top-28 z-50 w-full max-w-sm rounded-xl bg-white shadow-lg">
