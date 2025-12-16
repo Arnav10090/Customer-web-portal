@@ -395,18 +395,18 @@ const CustomerPortal = () => {
   // PO dropdown state
   const [poNumbers, setPoNumbers] = useState([]);
   const [poDropdownOpen, setPoDropdownOpen] = useState(false);
- const [poSearch, setPoSearch] = useState(() => {
-  try {
-    const saved = localStorage.getItem("customerPortal_formData");
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return String(parsed.poNumber || "");
+  const [poSearch, setPoSearch] = useState(() => {
+    try {
+      const saved = localStorage.getItem("customerPortal_formData");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return String(parsed.poNumber || "");
+      }
+    } catch {
+      // ignore
     }
-  } catch {
-    // ignore
-  }
-  return "";
-});
+    return "";
+  });
   const [loadingPos, setLoadingPos] = useState(false);
   const [driverExists, setDriverExists] = useState(false);
   const [helperExists, setHelperExists] = useState(false);
@@ -525,22 +525,22 @@ const CustomerPortal = () => {
   }, [user?.id]);
 
   useEffect(() => {
-  console.log("=== PO Debug ===");
-  console.log("poSearch type:", typeof poSearch);
-  console.log("poSearch value:", poSearch);
-  console.log("formData.poNumber:", formData.poNumber);
-  console.log("poNumbers:", poNumbers);
-}, [poSearch, formData.poNumber, poNumbers]);
+    console.log("=== PO Debug ===");
+    console.log("poSearch type:", typeof poSearch);
+    console.log("poSearch value:", poSearch);
+    console.log("formData.poNumber:", formData.poNumber);
+    console.log("poNumbers:", poNumbers);
+  }, [poSearch, formData.poNumber, poNumbers]);
 
   // Sync poSearch with formData.poNumber - with type safety
-useEffect(() => {
-  const poNumber = String(formData.poNumber || "");
-  const currentSearch = String(poSearch || "");
-  
-  if (poNumber && poNumber !== currentSearch) {
-    setPoSearch(poNumber);
-  }
-}, [formData.poNumber]);
+  useEffect(() => {
+    const poNumber = String(formData.poNumber || "");
+    const currentSearch = String(poSearch || "");
+
+    if (poNumber && poNumber !== currentSearch) {
+      setPoSearch(poNumber);
+    }
+  }, [formData.poNumber]);
 
   // Handle vehicle selection from dropdown
   const handleVehicleSelect = async (vehicleNumber) => {
@@ -685,12 +685,13 @@ useEffect(() => {
     }
   };
 
-  // Handle PO number blur
-  const handlePONumberBlur = async () => {
-    const poNumber =
-      formData.poNumber && typeof formData.poNumber === "string"
-        ? formData.poNumber.trim()
-        : "";
+  // Handle PO number blur (accept optional PO value to avoid state race)
+  const handlePONumberBlur = async (poNumberArg) => {
+    const poNumber = poNumberArg
+      ? String(poNumberArg).trim()
+      : formData.poNumber && typeof formData.poNumber === "string"
+      ? formData.poNumber.trim()
+      : "";
     if (!poNumber || poNumber.length < 2) return;
 
     try {
@@ -2092,159 +2093,171 @@ useEffect(() => {
   };
 
   const handleNextStep = async () => {
-  const currentStepFields = stepFieldMap[currentStep];
-  
-  // If on step 0 and poSearch has a value but formData.poNumber doesn't, sync them
-  if (currentStep === 0 && poSearch && !formData.poNumber) {
-    setFormData((prev) => ({
-      ...prev,
-      poNumber: poSearch,
-    }));
-    // Wait a tiny bit for state to update
-    await new Promise(resolve => setTimeout(resolve, 50));
-  }
-  
-  if (!validateFields(currentStepFields)) {
-    // Check if there are any empty required fields
-    const hasEmptyFields = currentStepFields.some(field => {
-      if (field === "_anyDocument") {
-        return !Object.values(files).some((arr) =>
-          Array.isArray(arr) ? arr.length > 0 : !!arr
-        );
-      }
-      
-      // Check if field is empty
-      if (field === "customerEmail" || field === "vehicleNumber" || field === "poNumber" ||
-          field === "driverName" || field === "driverPhone" || field === "driverAadhar" ||
-          field === "helperName" || field === "helperPhone" || field === "helperAadhar") {
-        return !formData[field] || (typeof formData[field] === "string" && !formData[field].trim());
-      }
-      
-      return false;
-    });
-    
-    // Only show the generic popup if there are empty fields
-    // Format errors will be shown under the field itself
-    if (hasEmptyFields) {
-      showPopupMessage(
-        "Please fill in all required fields before proceeding.",
-        "warning"
-      );
+    const currentStepFields = stepFieldMap[currentStep];
+
+    // If on step 0 and poSearch has a value but formData.poNumber doesn't, sync them
+    if (currentStep === 0 && poSearch && !formData.poNumber) {
+      setFormData((prev) => ({
+        ...prev,
+        poNumber: poSearch,
+      }));
+      // Wait a tiny bit for state to update
+      await new Promise((resolve) => setTimeout(resolve, 50));
     }
-    
-    return;
-  }
 
-  // If on step 0, save vehicle and PO before proceeding
-  if (currentStep === 0) {
-    try {
-      setLoading(true);
-      
-      // Track what was created
-      let vehicleCreated = false;
-      let poCreated = false;
-      const createdItems = [];
-
-      // Create/get vehicle first
-      if (formData.vehicleNumber.trim()) {
-        const vehicleResponse = await vehiclesAPI.createOrGetVehicle(
-          formData.vehicleNumber
-        );
-        vehicleCreated = vehicleResponse.data.created;
-        
-        if (vehicleCreated) {
-          createdItems.push("Vehicle");
-        }
-        
-        const { driver, helper, po_number } = vehicleResponse.data;
-
-        // Auto-fill driver and helper for Step 1
-        const updates = {};
-        let hasDriver = false;
-        let hasHelper = false;
-
-        if (driver) {
-          updates.driverName = driver.name || "";
-          updates.driverPhone = driver.phoneNo || "";
-          updates.driverLanguage = driver.language || "en";
-          hasDriver = true;
-        }
-
-        if (helper) {
-          updates.helperName = helper.name || "";
-          updates.helperPhone = helper.phoneNo || "";
-          updates.helperLanguage = helper.language || "en";
-          hasHelper = true;
-        }
-
-        if (Object.keys(updates).length > 0) {
-          setFormData((prev) => ({ ...prev, ...updates }));
-
-          // Show combined message only if not shown before
-          if (!hasShownDriverHelperPopup) {
-            if (hasDriver && hasHelper) {
-              showPopupMessage("Driver and Helper info auto-filled", "info");
-            } else if (hasDriver) {
-              showPopupMessage("Driver info auto-filled", "info");
-            } else if (hasHelper) {
-              showPopupMessage("Helper info auto-filled", "info");
-            }
-            setHasShownDriverHelperPopup(true);
-          }
-        }
-
-        setVehicleSaved(true);
-      }
-
-      // Create/get PO after vehicle is saved
-      if (formData.poNumber.trim()) {
-        try {
-          const poResponse = await poDetailsAPI.createOrGetPO(
-            formData.poNumber
-          );
-          poCreated = poResponse.data.created;
-          
-          if (poCreated) {
-            createdItems.push("PO");
-          }
-          
-          const poData = poResponse.data.po;
-
-          // Extract dapName
-          if (poData && poData.dapName) {
-            if (typeof poData.dapName === "object" && poData.dapName.name) {
-              setDapName(poData.dapName.name);
-            } else if (typeof poData.dapName === "string") {
-              setDapName(poData.dapName);
-            }
-          } else {
-            setDapName("");
-          }
-        } catch (poError) {
-          console.error("Failed to create/get PO:", poError);
-          showPopupMessage(
-            "Failed to save PO details, but you can continue",
-            "warning"
+    if (!validateFields(currentStepFields)) {
+      // Check if there are any empty required fields
+      const hasEmptyFields = currentStepFields.some((field) => {
+        if (field === "_anyDocument") {
+          return !Object.values(files).some((arr) =>
+            Array.isArray(arr) ? arr.length > 0 : !!arr
           );
         }
+
+        // Check if field is empty
+        if (
+          field === "customerEmail" ||
+          field === "vehicleNumber" ||
+          field === "poNumber" ||
+          field === "driverName" ||
+          field === "driverPhone" ||
+          field === "driverAadhar" ||
+          field === "helperName" ||
+          field === "helperPhone" ||
+          field === "helperAadhar"
+        ) {
+          return (
+            !formData[field] ||
+            (typeof formData[field] === "string" && !formData[field].trim())
+          );
+        }
+
+        return false;
+      });
+
+      // Only show the generic popup if there are empty fields
+      // Format errors will be shown under the field itself
+      if (hasEmptyFields) {
+        showPopupMessage(
+          "Please fill in all required fields before proceeding.",
+          "warning"
+        );
       }
-      
-      // Show success message based on what was created
-      if (createdItems.length > 0) {
-        const message = `${createdItems.join(" and ")} numbers created successfully`;
-        showPopupMessage(message, "info");
-      }
-      
-    } catch (error) {
-      console.error("Failed to save vehicle:", error);
-      showPopupMessage(
-        "Failed to save vehicle details, but you can continue",
-        "warning"
-      );
-    } finally {
-      setLoading(false);
+
+      return;
     }
-  }
+
+    // If on step 0, save vehicle and PO before proceeding
+    if (currentStep === 0) {
+      try {
+        setLoading(true);
+
+        // Track what was created
+        let vehicleCreated = false;
+        let poCreated = false;
+        const createdItems = [];
+
+        // Create/get vehicle first
+        if (formData.vehicleNumber.trim()) {
+          const vehicleResponse = await vehiclesAPI.createOrGetVehicle(
+            formData.vehicleNumber
+          );
+          vehicleCreated = vehicleResponse.data.created;
+
+          if (vehicleCreated) {
+            createdItems.push("Vehicle");
+          }
+
+          const { driver, helper, po_number } = vehicleResponse.data;
+
+          // Auto-fill driver and helper for Step 1
+          const updates = {};
+          let hasDriver = false;
+          let hasHelper = false;
+
+          if (driver) {
+            updates.driverName = driver.name || "";
+            updates.driverPhone = driver.phoneNo || "";
+            updates.driverLanguage = driver.language || "en";
+            hasDriver = true;
+          }
+
+          if (helper) {
+            updates.helperName = helper.name || "";
+            updates.helperPhone = helper.phoneNo || "";
+            updates.helperLanguage = helper.language || "en";
+            hasHelper = true;
+          }
+
+          if (Object.keys(updates).length > 0) {
+            setFormData((prev) => ({ ...prev, ...updates }));
+
+            // Show combined message only if not shown before
+            if (!hasShownDriverHelperPopup) {
+              if (hasDriver && hasHelper) {
+                showPopupMessage("Driver and Helper info auto-filled", "info");
+              } else if (hasDriver) {
+                showPopupMessage("Driver info auto-filled", "info");
+              } else if (hasHelper) {
+                showPopupMessage("Helper info auto-filled", "info");
+              }
+              setHasShownDriverHelperPopup(true);
+            }
+          }
+
+          setVehicleSaved(true);
+        }
+
+        // Create/get PO after vehicle is saved
+        if (formData.poNumber.trim()) {
+          try {
+            const poResponse = await poDetailsAPI.createOrGetPO(
+              formData.poNumber
+            );
+            poCreated = poResponse.data.created;
+
+            if (poCreated) {
+              createdItems.push("PO");
+            }
+
+            const poData = poResponse.data.po;
+
+            // Extract dapName
+            if (poData && poData.dapName) {
+              if (typeof poData.dapName === "object" && poData.dapName.name) {
+                setDapName(poData.dapName.name);
+              } else if (typeof poData.dapName === "string") {
+                setDapName(poData.dapName);
+              }
+            } else {
+              setDapName("");
+            }
+          } catch (poError) {
+            console.error("Failed to create/get PO:", poError);
+            showPopupMessage(
+              "Failed to save PO details, but you can continue",
+              "warning"
+            );
+          }
+        }
+
+        // Show success message based on what was created
+        if (createdItems.length > 0) {
+          const message = `${createdItems.join(
+            " and "
+          )} numbers created successfully`;
+          showPopupMessage(message, "info");
+        }
+      } catch (error) {
+        console.error("Failed to save vehicle:", error);
+        showPopupMessage(
+          "Failed to save vehicle details, but you can continue",
+          "warning"
+        );
+      } finally {
+        setLoading(false);
+      }
+    }
     // If on step 1, save driver and helper info ONLY if data has changed
     if (currentStep === 1) {
       // Validate that all required fields are filled before proceeding
@@ -3146,19 +3159,19 @@ useEffect(() => {
                               )}
                               <div className="relative mt-2">
                                 <input
-  ref={poInputRef}
-  type="text"
-  placeholder="Search or type PO number..."
-  value={String(poSearch || "")}
-  onChange={(e) => {
-    const value = e.target.value;
-    setPoSearch(value);
-    setFormData((prev) => ({
-      ...prev,
-      poNumber: value,
-    }));
-    setPoDropdownOpen(true);
-  }}
+                                  ref={poInputRef}
+                                  type="text"
+                                  placeholder="Search or type PO number..."
+                                  value={String(poSearch || "")}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    setPoSearch(value);
+                                    setFormData((prev) => ({
+                                      ...prev,
+                                      poNumber: value,
+                                    }));
+                                    setPoDropdownOpen(true);
+                                  }}
                                   onFocus={() => setPoDropdownOpen(true)}
                                   onBlur={() => {
                                     // Keep the PO number in form data even after blur
@@ -3179,40 +3192,50 @@ useEffect(() => {
                                 <ChevronDown className="absolute right-4 top-5 h-4 w-4 text-gray-400 pointer-events-none" />
 
                                 {poDropdownOpen && poNumbers.length > 0 && (
-  <div
-    ref={poListRef}
-    className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto"
-  >
-    {poNumbers
-      .filter((po) => {
-        // Ensure both values are strings before comparing
-        const poId = String(po?.id || "").toLowerCase();
-        const searchTerm = String(poSearch || "").toLowerCase();
-        return poId.includes(searchTerm);
-      })
-      .map((po) => (
-        <button
-          type="button"
-          key={po.id}
-          onClick={async (e) => {
-            e.preventDefault();
-            const poValue = String(po.id);
-            setPoSearch(poValue);
-            setPoDropdownOpen(false);
-            setFormData((prev) => ({
-              ...prev,
-              poNumber: poValue,
-            }));
-            // Fetch DAP data when PO is selected
-            await handlePONumberBlur();
-          }}
-          className="w-full px-4 py-3 text-left text-sm hover:bg-blue-50 transition-colors border-b last:border-b-0 disabled:opacity-50"
-        >
-          {po.id}
-        </button>
-      ))}
-  </div>
-)}
+                                  <div
+                                    ref={poListRef}
+                                    className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto"
+                                  >
+                                    {poNumbers
+                                      .filter((po) => {
+                                        // Ensure both values are strings before comparing
+                                        const poId = String(
+                                          po?.id || ""
+                                        ).toLowerCase();
+                                        const searchTerm = String(
+                                          poSearch || ""
+                                        ).toLowerCase();
+                                        return poId.includes(searchTerm);
+                                      })
+                                      .map((po) => (
+                                        <button
+                                          type="button"
+                                          key={po.id}
+                                          onClick={async (e) => {
+                                            e.preventDefault();
+                                            const poValue = String(po.id);
+                                            setPoSearch(poValue);
+                                            setPoDropdownOpen(false);
+                                            setFormData((prev) => ({
+                                              ...prev,
+                                              poNumber: poValue,
+                                            }));
+                                            // Clear any existing PO validation error immediately
+                                            try {
+                                              clearFieldError("poNumber");
+                                            } catch (e) {
+                                              // ignore if clearFieldError not available for some reason
+                                            }
+                                            // Fetch DAP data when PO is selected — pass value to avoid state-update race
+                                            await handlePONumberBlur(poValue);
+                                          }}
+                                          className="w-full px-4 py-3 text-left text-sm hover:bg-blue-50 transition-colors border-b last:border-b-0 disabled:opacity-50"
+                                        >
+                                          {po.id}
+                                        </button>
+                                      ))}
+                                  </div>
+                                )}
                               </div>
                             </>
                           )}
@@ -3316,11 +3339,15 @@ useEffect(() => {
                                     className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto"
                                   >
                                     {vehicles
-  .filter((v) => {
-    const vehicleNo = String(v?.vehicleRegistrationNo || "").toLowerCase();
-    const searchTerm = String(vehicleSearch || "").toLowerCase();
-    return vehicleNo.includes(searchTerm);
-  })
+                                      .filter((v) => {
+                                        const vehicleNo = String(
+                                          v?.vehicleRegistrationNo || ""
+                                        ).toLowerCase();
+                                        const searchTerm = String(
+                                          vehicleSearch || ""
+                                        ).toLowerCase();
+                                        return vehicleNo.includes(searchTerm);
+                                      })
                                       .map((vehicle) => (
                                         <button
                                           type="button"
