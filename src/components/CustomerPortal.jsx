@@ -395,7 +395,18 @@ const CustomerPortal = () => {
   // PO dropdown state
   const [poNumbers, setPoNumbers] = useState([]);
   const [poDropdownOpen, setPoDropdownOpen] = useState(false);
-  const [poSearch, setPoSearch] = useState("");
+ const [poSearch, setPoSearch] = useState(() => {
+  try {
+    const saved = localStorage.getItem("customerPortal_formData");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return String(parsed.poNumber || "");
+    }
+  } catch {
+    // ignore
+  }
+  return "";
+});
   const [loadingPos, setLoadingPos] = useState(false);
   const [driverExists, setDriverExists] = useState(false);
   const [helperExists, setHelperExists] = useState(false);
@@ -512,6 +523,24 @@ const CustomerPortal = () => {
       isMounted = false;
     };
   }, [user?.id]);
+
+  useEffect(() => {
+  console.log("=== PO Debug ===");
+  console.log("poSearch type:", typeof poSearch);
+  console.log("poSearch value:", poSearch);
+  console.log("formData.poNumber:", formData.poNumber);
+  console.log("poNumbers:", poNumbers);
+}, [poSearch, formData.poNumber, poNumbers]);
+
+  // Sync poSearch with formData.poNumber - with type safety
+useEffect(() => {
+  const poNumber = String(formData.poNumber || "");
+  const currentSearch = String(poSearch || "");
+  
+  if (poNumber && poNumber !== currentSearch) {
+    setPoSearch(poNumber);
+  }
+}, [formData.poNumber]);
 
   // Handle vehicle selection from dropdown
   const handleVehicleSelect = async (vehicleNumber) => {
@@ -2064,6 +2093,17 @@ const CustomerPortal = () => {
 
   const handleNextStep = async () => {
   const currentStepFields = stepFieldMap[currentStep];
+  
+  // If on step 0 and poSearch has a value but formData.poNumber doesn't, sync them
+  if (currentStep === 0 && poSearch && !formData.poNumber) {
+    setFormData((prev) => ({
+      ...prev,
+      poNumber: poSearch,
+    }));
+    // Wait a tiny bit for state to update
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  
   if (!validateFields(currentStepFields)) {
     // Check if there are any empty required fields
     const hasEmptyFields = currentStepFields.some(field => {
@@ -3106,18 +3146,19 @@ const CustomerPortal = () => {
                               )}
                               <div className="relative mt-2">
                                 <input
-                                  ref={poInputRef}
-                                  type="text"
-                                  placeholder="Search or type PO number..."
-                                  value={poSearch}
-                                  onChange={(e) => {
-                                    setPoSearch(e.target.value);
-                                    setFormData((prev) => ({
-                                      ...prev,
-                                      poNumber: e.target.value,
-                                    }));
-                                    setPoDropdownOpen(true);
-                                  }}
+  ref={poInputRef}
+  type="text"
+  placeholder="Search or type PO number..."
+  value={String(poSearch || "")}
+  onChange={(e) => {
+    const value = e.target.value;
+    setPoSearch(value);
+    setFormData((prev) => ({
+      ...prev,
+      poNumber: value,
+    }));
+    setPoDropdownOpen(true);
+  }}
                                   onFocus={() => setPoDropdownOpen(true)}
                                   onBlur={() => {
                                     // Keep the PO number in form data even after blur
@@ -3138,38 +3179,40 @@ const CustomerPortal = () => {
                                 <ChevronDown className="absolute right-4 top-5 h-4 w-4 text-gray-400 pointer-events-none" />
 
                                 {poDropdownOpen && poNumbers.length > 0 && (
-                                  <div
-                                    ref={poListRef}
-                                    className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto"
-                                  >
-                                    {poNumbers
-                                      .filter((po) =>
-                                        po.id
-                                          .toLowerCase()
-                                          .includes(poSearch.toLowerCase())
-                                      )
-                                      .map((po) => (
-                                        <button
-                                          type="button"
-                                          key={po.id}
-                                          onClick={async (e) => {
-                                            e.preventDefault();
-                                            setPoSearch(po.id);
-                                            setPoDropdownOpen(false);
-                                            setFormData((prev) => ({
-                                              ...prev,
-                                              poNumber: po.id,
-                                            }));
-                                            // Fetch DAP data when PO is selected
-                                            await handlePONumberBlur();
-                                          }}
-                                          className="w-full px-4 py-3 text-left text-sm hover:bg-blue-50 transition-colors border-b last:border-b-0 disabled:opacity-50"
-                                        >
-                                          {po.id}
-                                        </button>
-                                      ))}
-                                  </div>
-                                )}
+  <div
+    ref={poListRef}
+    className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto"
+  >
+    {poNumbers
+      .filter((po) => {
+        // Ensure both values are strings before comparing
+        const poId = String(po?.id || "").toLowerCase();
+        const searchTerm = String(poSearch || "").toLowerCase();
+        return poId.includes(searchTerm);
+      })
+      .map((po) => (
+        <button
+          type="button"
+          key={po.id}
+          onClick={async (e) => {
+            e.preventDefault();
+            const poValue = String(po.id);
+            setPoSearch(poValue);
+            setPoDropdownOpen(false);
+            setFormData((prev) => ({
+              ...prev,
+              poNumber: poValue,
+            }));
+            // Fetch DAP data when PO is selected
+            await handlePONumberBlur();
+          }}
+          className="w-full px-4 py-3 text-left text-sm hover:bg-blue-50 transition-colors border-b last:border-b-0 disabled:opacity-50"
+        >
+          {po.id}
+        </button>
+      ))}
+  </div>
+)}
                               </div>
                             </>
                           )}
@@ -3273,11 +3316,11 @@ const CustomerPortal = () => {
                                     className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-60 overflow-y-auto"
                                   >
                                     {vehicles
-                                      .filter((v) =>
-                                        v.vehicleRegistrationNo
-                                          .toLowerCase()
-                                          .includes(vehicleSearch.toLowerCase())
-                                      )
+  .filter((v) => {
+    const vehicleNo = String(v?.vehicleRegistrationNo || "").toLowerCase();
+    const searchTerm = String(vehicleSearch || "").toLowerCase();
+    return vehicleNo.includes(searchTerm);
+  })
                                       .map((vehicle) => (
                                         <button
                                           type="button"
