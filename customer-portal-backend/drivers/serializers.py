@@ -5,7 +5,7 @@ from .models import DriverHelper
 class DriverHelperSerializer(serializers.ModelSerializer):
     class Meta:
         model = DriverHelper
-        fields = ['id', 'name', 'type', 'phoneNo', 'language', 'isBlacklisted', 'rating', 'created']
+        fields = ['id', 'uid', 'name', 'type', 'phoneNo', 'language', 'isBlacklisted', 'rating', 'created']
         read_only_fields = ['id', 'created']
 
 class DriverHelperValidateSerializer(serializers.Serializer):

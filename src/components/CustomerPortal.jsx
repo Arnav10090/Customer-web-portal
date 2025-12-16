@@ -434,6 +434,11 @@ const CustomerPortal = () => {
   const poInputRef = useRef(null);
   const poListRef = useRef(null);
 
+  const normalizeAadharValue = (value) =>
+    String(value ?? "")
+      .replace(/\D/g, "")
+      .slice(0, 12);
+
   // Fetch user's vehicles on component mount - consolidated
   useEffect(() => {
     let isMounted = true; // Add cleanup flag
@@ -573,7 +578,7 @@ const CustomerPortal = () => {
         updates.driverName = driver.name || "";
         updates.driverPhone = driver.phoneNo || "";
         updates.driverLanguage = driver.language || "en";
-        updates.driverAadhar = driver.uid || "";
+        updates.driverAadhar = normalizeAadharValue(driver.uid);
         setSavedDriverData(driver);
         setDriverExists(!!driver.uid);
       }
@@ -583,7 +588,7 @@ const CustomerPortal = () => {
         updates.helperName = helper.name || "";
         updates.helperPhone = helper.phoneNo || "";
         updates.helperLanguage = helper.language || "en";
-        updates.helperAadhar = helper.uid || "";
+        updates.helperAadhar = normalizeAadharValue(helper.uid);
         setSavedHelperData(helper);
         setHelperExists(!!helper.uid);
       }
@@ -600,11 +605,18 @@ const CustomerPortal = () => {
       const { documents, po_number } = completeDataResponse.data;
 
       // Only update PO number if user hasn't already selected one
-      if (po_number && !formData.poNumber) {
-        setFormData((prev) => ({
-          ...prev,
-          poNumber: po_number,
-        }));
+      if (po_number) {
+        setFormData((prev) => {
+          const existing =
+            typeof prev.poNumber === "string"
+              ? prev.poNumber.trim()
+              : String(prev.poNumber || "").trim();
+          if (existing) return prev;
+          return {
+            ...prev,
+            poNumber: String(po_number),
+          };
+        });
       }
 
       if (documents && documents.length > 0) {
@@ -780,7 +792,7 @@ const CustomerPortal = () => {
         updates.driverName = driver.name || "";
         updates.driverPhone = driver.phoneNo || "";
         updates.driverLanguage = driver.language || "en";
-        updates.driverAadhar = driver.uid || "";
+        updates.driverAadhar = normalizeAadharValue(driver.uid);
         setSavedDriverData(driver);
         setDriverExists(!!driver.uid);
       }
@@ -790,7 +802,7 @@ const CustomerPortal = () => {
         updates.helperName = helper.name || "";
         updates.helperPhone = helper.phoneNo || "";
         updates.helperLanguage = helper.language || "en";
-        updates.helperAadhar = helper.uid || "";
+        updates.helperAadhar = normalizeAadharValue(helper.uid);
         setSavedHelperData(helper);
         setHelperExists(!!helper.uid);
       }
@@ -803,10 +815,18 @@ const CustomerPortal = () => {
       // Handle PO number
       const poNumber = data.po_number || data.poNumber || "";
       if (poNumber) {
-        setFormData((prev) => ({
-          ...prev,
-          poNumber: poNumber,
-        }));
+        const poNumberStr = String(poNumber);
+        setFormData((prev) => {
+          const existing =
+            typeof prev.poNumber === "string"
+              ? prev.poNumber.trim()
+              : String(prev.poNumber || "").trim();
+          if (existing) return prev;
+          return {
+            ...prev,
+            poNumber: poNumberStr,
+          };
+        });
       }
 
       // Handle documents
@@ -904,16 +924,16 @@ const CustomerPortal = () => {
       updates.driverName = driver.name || driver.driverName || "";
       updates.driverPhone = driver.phoneNo || driver.driver_phone || "";
       updates.driverLanguage = driver.language || driver.lang || "en";
-      updates.driverAadhar = driver.uid || ""; // Add this
-      setDriverExists(!!driver.uid); // Add this
+      updates.driverAadhar = normalizeAadharValue(driver.uid);
+      setDriverExists(!!driver.uid);
     }
 
     if (helper) {
       updates.helperName = helper.name || helper.helperName || "";
       updates.helperPhone = helper.phoneNo || helper.helper_phone || "";
       updates.helperLanguage = helper.language || helper.lang || "en";
-      updates.helperAadhar = helper.uid || ""; // Add this
-      setHelperExists(!!helper.uid); // Add this
+      updates.helperAadhar = normalizeAadharValue(helper.uid);
+      setHelperExists(!!helper.uid);
     }
 
     // Apply updates in a single state update
@@ -1149,7 +1169,8 @@ const CustomerPortal = () => {
         formData.driverName !== savedDriverData.name ||
         formData.driverPhone !== savedDriverData.phoneNo ||
         formData.driverLanguage !== savedDriverData.language ||
-        formData.driverAadhar !== savedDriverData.uid;
+        normalizeAadharValue(formData.driverAadhar) !==
+          normalizeAadharValue(savedDriverData.uid);
       setDriverChanged(hasChanged);
     }
   }, [
@@ -1167,7 +1188,8 @@ const CustomerPortal = () => {
         formData.helperName !== savedHelperData.name ||
         formData.helperPhone !== savedHelperData.phoneNo ||
         formData.helperLanguage !== savedHelperData.language ||
-        formData.helperAadhar !== savedHelperData.uid;
+        normalizeAadharValue(formData.helperAadhar) !==
+          normalizeAadharValue(savedHelperData.uid);
       setHelperChanged(hasChanged);
     }
   }, [
@@ -1265,7 +1287,7 @@ const CustomerPortal = () => {
     }
     // Format Aadhar - only digits, max 12
     if (field === "driverAadhar" || field === "helperAadhar") {
-      nextValue = value.replace(/\D/g, "").slice(0, 12);
+      nextValue = normalizeAadharValue(value);
     }
     setFormData((previous) => ({
       ...previous,
@@ -1548,15 +1570,15 @@ const CustomerPortal = () => {
         if (field === "driverAadhar") {
           // Skip validation if driver exists and hasn't changed
           if (!(driverExists && !driverChanged)) {
-            if (!formData.driverAadhar || !formData.driverAadhar.trim()) {
+            const normalizedDriverAadhar = normalizeAadharValue(
+              formData.driverAadhar
+            );
+            if (!normalizedDriverAadhar) {
               validationErrors.driverAadhar =
                 "Driver Aadhar number is required.";
-            } else if (formData.driverAadhar.trim().length !== 12) {
+            } else if (normalizedDriverAadhar.length !== 12) {
               validationErrors.driverAadhar =
                 "Driver Aadhar must be exactly 12 digits.";
-            } else if (!/^\d{12}$/.test(formData.driverAadhar.trim())) {
-              validationErrors.driverAadhar =
-                "Driver Aadhar must contain only digits.";
             }
           }
         }
@@ -1577,15 +1599,15 @@ const CustomerPortal = () => {
         if (field === "helperAadhar") {
           // Skip validation if helper exists and hasn't changed
           if (!(helperExists && !helperChanged)) {
-            if (!formData.helperAadhar || !formData.helperAadhar.trim()) {
+            const normalizedHelperAadhar = normalizeAadharValue(
+              formData.helperAadhar
+            );
+            if (!normalizedHelperAadhar) {
               validationErrors.helperAadhar =
                 "Helper Aadhar number is required.";
-            } else if (formData.helperAadhar.trim().length !== 12) {
+            } else if (normalizedHelperAadhar.length !== 12) {
               validationErrors.helperAadhar =
                 "Helper Aadhar must be exactly 12 digits.";
-            } else if (!/^\d{12}$/.test(formData.helperAadhar.trim())) {
-              validationErrors.helperAadhar =
-                "Helper Aadhar must contain only digits.";
             }
           }
         }
@@ -1635,14 +1657,17 @@ const CustomerPortal = () => {
   const handleAddDriver = async () => {
     // Validate driver fields
     const errors = {};
+    const normalizedDriverAadhar = normalizeAadharValue(formData.driverAadhar);
     if (!(formData.driverName || "").trim()) {
       errors.driverName = "Driver name is required";
     }
     if (!formData.driverPhone) {
       errors.driverPhone = "Driver phone is required";
     }
-    if (!formData.driverAadhar) {
+    if (!normalizedDriverAadhar) {
       errors.driverAadhar = "Driver Aadhar is required";
+    } else if (normalizedDriverAadhar.length !== 12) {
+      errors.driverAadhar = "Driver Aadhar must be exactly 12 digits";
     }
 
     if (Object.keys(errors).length > 0) {
@@ -1658,7 +1683,7 @@ const CustomerPortal = () => {
         phoneNo: formData.driverPhone,
         type: "Driver",
         language: formData.driverLanguage,
-        uid: (formData.driverAadhar || "").trim(),
+        uid: normalizedDriverAadhar,
       };
 
       const response = await driversAPI.validateOrCreate(driverPayload);
@@ -1680,14 +1705,17 @@ const CustomerPortal = () => {
   const handleAddHelper = async () => {
     // Validate helper fields
     const errors = {};
+    const normalizedHelperAadhar = normalizeAadharValue(formData.helperAadhar);
     if (!(formData.helperName || "").trim()) {
       errors.helperName = "Helper name is required";
     }
     if (!formData.helperPhone) {
       errors.helperPhone = "Helper phone is required";
     }
-    if (!formData.helperAadhar) {
+    if (!normalizedHelperAadhar) {
       errors.helperAadhar = "Helper Aadhar is required";
+    } else if (normalizedHelperAadhar.length !== 12) {
+      errors.helperAadhar = "Helper Aadhar must be exactly 12 digits";
     }
 
     if (Object.keys(errors).length > 0) {
@@ -1703,7 +1731,7 @@ const CustomerPortal = () => {
         phoneNo: formData.helperPhone,
         type: "Helper",
         language: formData.helperLanguage,
-        uid: (formData.helperAadhar || "").trim(),
+        uid: normalizedHelperAadhar,
       };
 
       const response = await driversAPI.validateOrCreate(helperPayload);
@@ -1726,16 +1754,20 @@ const CustomerPortal = () => {
   const handleDriverModalSave = async (driverData) => {
     try {
       setLoading(true);
+      const requestedUid = normalizeAadharValue(driverData.aadhar);
       const payload = {
         name: driverData.name.trim(),
         phoneNo: driverData.phone,
         type: "Driver",
         language: driverData.language,
-        uid: driverData.aadhar.trim(), // Ensure trim here
+        uid: requestedUid,
       };
 
       const response = await driversAPI.validateOrCreate(payload);
       const newDriver = response.data.driver;
+
+      const responseUid = normalizeAadharValue(newDriver?.uid);
+      const finalUid = responseUid || requestedUid;
 
       // Update form with new driver data
       setFormData((prev) => ({
@@ -1743,7 +1775,7 @@ const CustomerPortal = () => {
         driverName: newDriver.name,
         driverPhone: newDriver.phoneNo,
         driverLanguage: newDriver.language,
-        driverAadhar: newDriver.uid,
+        driverAadhar: finalUid,
       }));
 
       // Add to drivers list
@@ -1786,16 +1818,20 @@ const CustomerPortal = () => {
   const handleHelperModalSave = async (helperData) => {
     try {
       setLoading(true);
+      const requestedUid = normalizeAadharValue(helperData.aadhar);
       const payload = {
         name: helperData.name.trim(),
         phoneNo: helperData.phone,
         type: "Helper",
         language: helperData.language,
-        uid: helperData.aadhar.trim(), // Ensure trim here
+        uid: requestedUid,
       };
 
       const response = await driversAPI.validateOrCreate(payload);
       const newHelper = response.data.driver;
+
+      const responseUid = normalizeAadharValue(newHelper?.uid);
+      const finalUid = responseUid || requestedUid;
 
       // Update form with new helper data
       setFormData((prev) => ({
@@ -1803,7 +1839,7 @@ const CustomerPortal = () => {
         helperName: newHelper.name,
         helperPhone: newHelper.phoneNo,
         helperLanguage: newHelper.language,
-        helperAadhar: newHelper.uid,
+        helperAadhar: finalUid,
       }));
 
       // Add to helpers list
@@ -1849,7 +1885,7 @@ const CustomerPortal = () => {
       driverName: driver.name,
       driverPhone: driver.phoneNo,
       driverLanguage: driver.language,
-      driverAadhar: driver.uid,
+      driverAadhar: normalizeAadharValue(driver.uid),
     }));
     setDriverSearch(driver.name);
     setDriverDropdownOpen(false);
@@ -1903,7 +1939,7 @@ const CustomerPortal = () => {
       helperName: helper.name,
       helperPhone: helper.phoneNo,
       helperLanguage: helper.language,
-      helperAadhar: helper.uid,
+      helperAadhar: normalizeAadharValue(helper.uid),
     }));
     setHelperSearch(helper.name);
     setHelperDropdownOpen(false);
@@ -1953,13 +1989,14 @@ const CustomerPortal = () => {
   const handleSaveDriver = async () => {
     // Validate driver fields
     const errors = {};
+    const normalizedDriverAadhar = normalizeAadharValue(formData.driverAadhar);
     if (!(formData.driverName || "").trim()) {
       errors.driverName = "Driver name is required";
     }
     if (!formData.driverPhone) {
       errors.driverPhone = "Driver phone is required";
     }
-    if (!formData.driverAadhar || formData.driverAadhar.length !== 12) {
+    if (!normalizedDriverAadhar || normalizedDriverAadhar.length !== 12) {
       errors.driverAadhar = "Driver Aadhar must be exactly 12 digits";
     }
 
@@ -1976,11 +2013,17 @@ const CustomerPortal = () => {
         phoneNo: formData.driverPhone,
         type: "Driver",
         language: formData.driverLanguage,
-        uid: (formData.driverAadhar || "").trim(),
+        uid: normalizedDriverAadhar,
       };
 
       const response = await driversAPI.saveDriver(driverPayload);
       console.log("Driver saved:", response.data);
+
+      setFormData((prev) => ({
+        ...prev,
+        driverAadhar:
+          normalizeAadharValue(response.data?.driver?.uid) || normalizedDriverAadhar,
+      }));
 
       setSavedDriverData(response.data.driver);
       setDriverExists(true);
@@ -2024,13 +2067,14 @@ const CustomerPortal = () => {
   const handleSaveHelper = async () => {
     // Validate helper fields
     const errors = {};
+    const normalizedHelperAadhar = normalizeAadharValue(formData.helperAadhar);
     if (!(formData.helperName || "").trim()) {
       errors.helperName = "Helper name is required";
     }
     if (!formData.helperPhone) {
       errors.helperPhone = "Helper phone is required";
     }
-    if (!formData.helperAadhar || formData.helperAadhar.length !== 12) {
+    if (!normalizedHelperAadhar || normalizedHelperAadhar.length !== 12) {
       errors.helperAadhar = "Helper Aadhar must be exactly 12 digits";
     }
 
@@ -2047,11 +2091,17 @@ const CustomerPortal = () => {
         phoneNo: formData.helperPhone,
         type: "Helper",
         language: formData.helperLanguage,
-        uid: (formData.helperAadhar || "").trim(),
+        uid: normalizedHelperAadhar,
       };
 
       const response = await driversAPI.saveHelper(helperPayload);
       console.log("Helper saved:", response.data);
+
+      setFormData((prev) => ({
+        ...prev,
+        helperAadhar:
+          normalizeAadharValue(response.data?.driver?.uid) || normalizedHelperAadhar,
+      }));
 
       setSavedHelperData(response.data.driver);
       setHelperExists(true);
@@ -2265,6 +2315,8 @@ const CustomerPortal = () => {
     if (currentStep === 1) {
       // Validate that all required fields are filled before proceeding
       const step1Errors = {};
+      const normalizedDriverAadhar = normalizeAadharValue(formData.driverAadhar);
+      const normalizedHelperAadhar = normalizeAadharValue(formData.helperAadhar);
 
       // Driver validation
       if (!formData.driverName || !(formData.driverName || "").trim()) {
@@ -2274,8 +2326,8 @@ const CustomerPortal = () => {
         step1Errors.driverPhone = "Driver phone is required";
       }
       if (
-        !formData.driverAadhar ||
-        (formData.driverAadhar || "").trim().length !== 12
+        !normalizedDriverAadhar ||
+        normalizedDriverAadhar.length !== 12
       ) {
         step1Errors.driverAadhar = "Driver Aadhar must be exactly 12 digits";
       }
@@ -2288,8 +2340,8 @@ const CustomerPortal = () => {
         step1Errors.helperPhone = "Helper phone is required";
       }
       if (
-        !formData.helperAadhar ||
-        (formData.helperAadhar || "").trim().length !== 12
+        !normalizedHelperAadhar ||
+        normalizedHelperAadhar.length !== 12
       ) {
         step1Errors.helperAadhar = "Helper Aadhar must be exactly 12 digits";
       }
@@ -2308,11 +2360,11 @@ const CustomerPortal = () => {
         driverName: (formData.driverName || "").trim(),
         driverPhone: formData.driverPhone || "",
         driverLanguage: formData.driverLanguage || "en",
-        driverAadhar: (formData.driverAadhar || "").trim(),
+        driverAadhar: normalizedDriverAadhar,
         helperName: (formData.helperName || "").trim(),
         helperPhone: formData.helperPhone || "",
         helperLanguage: formData.helperLanguage || "en",
-        helperAadhar: (formData.helperAadhar || "").trim(),
+        helperAadhar: normalizedHelperAadhar,
       };
 
       // Check if data has changed since last save
