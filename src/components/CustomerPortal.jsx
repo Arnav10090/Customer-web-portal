@@ -2095,15 +2095,18 @@ const CustomerPortal = () => {
   const handleNextStep = async () => {
     const currentStepFields = stepFieldMap[currentStep];
 
-    // If on step 0 and poSearch has a value but formData.poNumber doesn't, sync them
-    if (currentStep === 0 && poSearch && !formData.poNumber) {
+    // If on step 0, sync poSearch with formData.poNumber
+  if (currentStep === 0) {
+    const poValue = String(poSearch || formData.poNumber || "").trim();
+    if (poValue && poValue !== formData.poNumber) {
       setFormData((prev) => ({
         ...prev,
-        poNumber: poSearch,
+        poNumber: poValue,
       }));
-      // Wait a tiny bit for state to update
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // Wait for state to update
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
+  }
 
     if (!validateFields(currentStepFields)) {
       // Check if there are any empty required fields
@@ -3211,24 +3214,26 @@ const CustomerPortal = () => {
                                         <button
                                           type="button"
                                           key={po.id}
-                                          onClick={async (e) => {
-                                            e.preventDefault();
-                                            const poValue = String(po.id);
-                                            setPoSearch(poValue);
-                                            setPoDropdownOpen(false);
-                                            setFormData((prev) => ({
-                                              ...prev,
-                                              poNumber: poValue,
-                                            }));
-                                            // Clear any existing PO validation error immediately
-                                            try {
-                                              clearFieldError("poNumber");
-                                            } catch (e) {
-                                              // ignore if clearFieldError not available for some reason
-                                            }
-                                            // Fetch DAP data when PO is selected — pass value to avoid state-update race
-                                            await handlePONumberBlur(poValue);
-                                          }}
+                                          onClick={(e) => {
+            e.preventDefault();
+            const poValue = String(po.id);
+            setPoSearch(poValue);
+            setPoDropdownOpen(false);
+            
+            // Update formData synchronously
+            setFormData((prev) => {
+              const updated = {
+                ...prev,
+                poNumber: poValue,
+              };
+              // Fetch DAP data after state update
+              setTimeout(() => handlePONumberBlur(poValue), 0);
+              return updated;
+            });
+            
+            // Clear any existing PO validation error
+            clearFieldError("poNumber");
+          }}
                                           className="w-full px-4 py-3 text-left text-sm hover:bg-blue-50 transition-colors border-b last:border-b-0 disabled:opacity-50"
                                         >
                                           {po.id}
